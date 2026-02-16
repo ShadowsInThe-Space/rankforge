@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Audit {
+  id         String   @id @default(cuid())
+  url        String
+  domain     String
+  status     String   @default("pending") // pending, mapping, crawling, analyzing, done, error
+  score      Int?     // 0-100
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Firecrawl Job Tracking
+  crawlJobId String?
+  pagesFound Int      @default(0)
+  keywords   String[] // Target-Keywords für Content Benchmark
+
+  // Analyse-Ergebnisse als JSON
+  technical Json? // Technical SEO findings
+  content   Json? // Content Intelligence findings
+  links     Json? // Link Graph data
+  summary   Json? // Executive Summary + Score Breakdown
+
+  // Error tracking
+  error String?
+
+  pages Page[]
+
+  @@index([domain])
+  @@index([status])
+}
+
+model Page {
+  id          String  @id @default(cuid())
+  auditId     String
+  url         String
+  statusCode  Int?
+  title       String?
+  description String?
+  h1          String?
+  wordCount   Int?
+  markdown    String? @db.Text
+  html        String? @db.Text
+  links       Json? // { internal: [], external: [] }
+  headings    Json? // H1-H6 structure
+  issues      Json? // Array of issues found
+  score       Int? // Page-level score
+  contentType String? // blog, product, landing, etc.
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([url])
+}

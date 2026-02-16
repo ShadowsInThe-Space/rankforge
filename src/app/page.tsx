@@ -1,65 +1,147 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+interface AuditSummary {
+  id: string;
+  url: string;
+  domain: string;
+  status: string;
+  score: number | null;
+  pagesFound: number;
+  createdAt: string;
+}
+
+const statusLabels: Record<string, string> = {
+  pending: "Wartend",
+  mapping: "URL-Discovery",
+  crawling: "Crawling",
+  analyzing: "Analyse",
+  done: "Fertig",
+  error: "Fehler",
+};
+
+const statusColors: Record<string, string> = {
+  pending: "bg-gray-500",
+  mapping: "bg-blue-500",
+  crawling: "bg-blue-500",
+  analyzing: "bg-yellow-500",
+  done: "bg-green-500",
+  error: "bg-red-500",
+};
+
+export default function DashboardPage() {
+  const [audits, setAudits] = useState<AuditSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/audit")
+      .then((res) => res.json())
+      .then(setAudits)
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Polls für laufende Audits
+  useEffect(() => {
+    const hasRunning = audits.some(
+      (a) => !["done", "error"].includes(a.status)
+    );
+    if (!hasRunning) return;
+
+    const interval = setInterval(() => {
+      fetch("/api/audit")
+        .then((res) => res.json())
+        .then(setAudits);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [audits]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">SEO Audits</h1>
+          <p className="text-muted-foreground mt-1">
+            {audits.length} Audit{audits.length !== 1 ? "s" : ""} durchgeführt
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <a href="/audit/new">
+          <Button>Neuer Audit</Button>
+        </a>
+      </div>
+
+      {audits.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <p className="text-muted-foreground text-lg mb-4">
+              Noch keine Audits vorhanden
+            </p>
+            <a href="/audit/new">
+              <Button>Ersten Audit starten</Button>
+            </a>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {audits.map((audit) => (
+            <a key={audit.id} href={`/audit/${audit.id}`}>
+              <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-lg">{audit.domain}</CardTitle>
+                  <div className="flex items-center gap-3">
+                    {audit.score !== null && (
+                      <span
+                        className={`text-2xl font-bold ${
+                          audit.score >= 70
+                            ? "text-green-500"
+                            : audit.score >= 40
+                            ? "text-yellow-500"
+                            : "text-red-500"
+                        }`}
+                      >
+                        {audit.score}
+                      </span>
+                    )}
+                    <Badge
+                      variant="secondary"
+                      className={`${statusColors[audit.status]} text-white`}
+                    >
+                      {statusLabels[audit.status] || audit.status}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <span>{audit.url}</span>
+                    <span>{audit.pagesFound} Seiten</span>
+                    <span>
+                      {new Date(audit.createdAt).toLocaleDateString("de-DE", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            </a>
+          ))}
         </div>
-      </main>
+      )}
     </div>
   );
 }
