@@ -39,8 +39,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetch("/api/audit")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json();
+      })
       .then(setAudits)
+      .catch(() => setAudits([]))
       .finally(() => setLoading(false));
   }, []);
 
@@ -53,8 +57,12 @@ export default function DashboardPage() {
 
     const interval = setInterval(() => {
       fetch("/api/audit")
-        .then((res) => res.json())
-        .then(setAudits);
+        .then((res) => {
+          if (!res.ok) return audits;
+          return res.json();
+        })
+        .then(setAudits)
+        .catch(() => {});
     }, 3000);
 
     return () => clearInterval(interval);

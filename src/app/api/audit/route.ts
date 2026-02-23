@@ -90,7 +90,7 @@ async function runAuditPipeline(
   });
 
   const crawlResult = await firecrawl.crawl(url, {
-    limit: 100,
+    limit: 10000, // Max pages to crawl (virtually unlimited)
     scrapeOptions: {
       formats: ["markdown", "html", "links"],
     },
@@ -150,6 +150,126 @@ async function runAuditPipeline(
       },
     });
   }
+
+  // Phase 4.5: Enterprise Analysis - Date Consistency (Google Leak 2024)
+  const { analyzeDateConsistency } = await import("@/lib/analyzers/date-consistency");
+  
+  const dateAnalysis = await Promise.all(
+    crawlStatus.data.map(async (page) => {
+      const pageUrl = page.metadata?.sourceURL || "";
+      if (!pageUrl) return null;
+      
+      try {
+        const report = await analyzeDateConsistency(page);
+        return {
+          url: pageUrl,
+          report,
+        };
+      } catch (e) {
+        console.error(`Date analysis failed for ${pageUrl}:`, e);
+        return null;
+      }
+    })
+  );
+
+  const dateAnalysisFiltered = dateAnalysis.filter((d) => d !== null);
+
+  // Phase 4.6: Enterprise Analysis - Index Tier Prediction (Google Leak 2024)
+  const { predictIndexTier } = await import("@/lib/analyzers/index-tier");
+  
+  // Calculate internal backlink counts
+  const internalBacklinks = new Map<string, number>();
+  for (const page of crawlStatus.data) {
+    const pageUrl = page.metadata?.sourceURL || "";
+    if (!pageUrl) continue;
+    
+    const links = categorizeLinks(page.links || [], pageUrl, domain);
+    for (const link of links.internal) {
+      internalBacklinks.set(link, (internalBacklinks.get(link) || 0) + 1);
+    }
+  }
+  
+  const tierAnalysis = await Promise.all(
+    crawlStatus.data.map(async (page) => {
+      const pageUrl = page.metadata?.sourceURL || "";
+      if (!pageUrl) return null;
+      
+      try {
+        const headings = extractHeadings(page.html || "");
+        const wordCount = countWords(page.markdown || "");
+        const links = categorizeLinks(page.links || [], pageUrl, domain);
+        
+        // Check if this page has perfect date consistency (for bonus)
+        const dateReport = dateAnalysisFiltered.find((d) => d?.url === pageUrl);
+        const dateConsistencyBonus = dateReport?.report.score === 100 ? 5 : 0;
+        
+        const prediction = await predictIndexTier(
+          {
+            url: pageUrl,
+            html: page.html,
+            markdown: page.markdown,
+            metadata: page.metadata,
+            wordCount,
+            headings,
+            links,
+          },
+          {
+            internalBacklinks: internalBacklinks.get(pageUrl) || 0,
+            dateConsistencyBonus,
+          }
+        );
+        
+        return {
+          url: pageUrl,
+          prediction,
+        };
+      } catch (e) {
+        console.error(`Index tier prediction failed for ${pageUrl}:`, e);
+        return null;
+      }
+    })
+  );
+  
+  const tierAnalysisFiltered = tierAnalysis.filter((t) => t !== null);
+
+  // Phase 4.7: Enterprise Analysis - NavBoost Simulator (Google Leak 2024)
+  const { analyzeNavBoost } = await import("@/lib/analyzers/navboost");
+  
+  const navboostReport = analyzeNavBoost(crawlStatus.data.map(page => ({
+    url: page.metadata?.sourceURL || "",
+    markdown: page.markdown || "",
+    html: page.html || "",
+    metadata: page.metadata,
+    links: page.links || []
+  })));
+
+  // Phase 4.8: Enterprise Analysis - Link Tier Analyzer (Google Leak 2024)
+  const { analyzeLinkTiers } = await import("@/lib/analyzers/link-tier");
+  
+  const linkTierReport = analyzeLinkTiers(
+    crawlStatus.data.map(page => ({
+      url: page.metadata?.sourceURL || "",
+      links: {
+        internal: (page.links || []).filter(link => {
+          try {
+            const linkUrl = new URL(link);
+            return linkUrl.hostname === domain || linkUrl.hostname.endsWith(`.${domain}`);
+          } catch {
+            return false;
+          }
+        }),
+        external: (page.links || []).filter(link => {
+          try {
+            const linkUrl = new URL(link);
+            return !(linkUrl.hostname === domain || linkUrl.hostname.endsWith(`.${domain}`));
+          } catch {
+            return false;
+          }
+        })
+      }
+    })),
+    tierAnalysisFiltered
+  );
 
   // Phase 5: Analyse ausführen
   const pages = await prisma.page.findMany({ where: { auditId } });
@@ -216,16 +336,35 @@ async function runAuditPipeline(
     };
   }
 
+  // Helper: Safe JSON serialization (handles Dates + Maps)
+  const safeSerialize = (obj: any) => {
+    return JSON.parse(JSON.stringify(obj, (key, value) => {
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      if (value instanceof Map) {
+        return Object.fromEntries(value);
+      }
+      return value;
+    }));
+  };
+
   // Phase 7: Ergebnisse in DB speichern
   await prisma.audit.update({
     where: { id: auditId },
     data: {
       status: "done",
       score: score.overall,
-      technical: JSON.parse(JSON.stringify(technicalResult)),
-      content: JSON.parse(JSON.stringify(contentResult)),
-      links: JSON.parse(JSON.stringify(linkResult)),
-      summary: JSON.parse(JSON.stringify(summary)),
+      technical: safeSerialize(technicalResult),
+      content: safeSerialize(contentResult),
+      links: safeSerialize(linkResult),
+      summary: safeSerialize(summary),
+      dateConsistency: safeSerialize(dateAnalysisFiltered),
+      indexTier: safeSerialize(tierAnalysisFiltered),
+      navboostScore: navboostReport.overallScore,
+      navboostAnalysis: safeSerialize(navboostReport),
+      linkTierScore: linkTierReport.overallScore,
+      linkTierAnalysis: safeSerialize(linkTierReport),
     },
   });
 
@@ -241,7 +380,7 @@ async function runAuditPipeline(
     await prisma.page.update({
       where: { id: page.id },
       data: {
-        issues: JSON.parse(JSON.stringify(pageIssues)),
+        issues: safeSerialize(pageIssues),
         contentType: contentPage?.contentType ?? null,
         score: pageIssues.length === 0 ? 100 : Math.max(0, 100 - pageIssues.length * 10),
       },

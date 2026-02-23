@@ -333,3 +333,102 @@ describe("Date Consistency - OG and Meta Tags", () => {
     expect(result.dates.ogDate.found).toBe(false);
   });
 });
+
+describe("Date Consistency - Fix Recommendations", () => {
+  it("should provide fix for HIGH severity conflict (URL vs. structured data)", async () => {
+    const page: FirecrawlPageData = {
+      metadata: {
+        sourceURL: "https://example.com/blog/2024-01-15-post",
+        title: "My Post",
+      },
+      html: `
+        <script type="application/ld+json">
+        {
+          "@type": "Article",
+          "datePublished": "2024-02-21"
+        }
+        </script>
+      `,
+    };
+
+    const result = await analyzeDateConsistency(page);
+
+    expect(result.conflicts.length).toBeGreaterThan(0);
+    const highConflict = result.conflicts.find(c => c.severity === "HIGH");
+    expect(highConflict).toBeDefined();
+    expect(highConflict?.fix).toContain("Update");
+    expect(highConflict?.fix).toContain("to match");
+  });
+
+  it("should provide fix for MEDIUM severity conflict (byline vs. structured data)", async () => {
+    const page: FirecrawlPageData = {
+      metadata: {
+        sourceURL: "https://example.com/blog/my-post",
+        title: "My Post",
+      },
+      html: `
+        <script type="application/ld+json">
+        {
+          "@type": "Article",
+          "datePublished": "2024-02-21"
+        }
+        </script>
+        <time datetime="2024-01-15">January 15, 2024</time>
+      `,
+    };
+
+    const result = await analyzeDateConsistency(page);
+
+    expect(result.conflicts.length).toBeGreaterThan(0);
+    const mediumConflict = result.conflicts.find(c => c.severity === "MEDIUM");
+    expect(mediumConflict).toBeDefined();
+    expect(mediumConflict?.fix).toContain("Add consistent date");
+  });
+
+  it("should provide fix for LOW severity conflict", async () => {
+    const page: FirecrawlPageData = {
+      metadata: {
+        sourceURL: "https://example.com/blog/my-post",
+        title: "My Post - January 10, 2024",
+      },
+      html: `
+        <script type="application/ld+json">
+        {
+          "@type": "Article",
+          "datePublished": "2024-02-21"
+        }
+        </script>
+      `,
+    };
+
+    const result = await analyzeDateConsistency(page);
+
+    // This should create a LOW severity conflict (title vs structured data)
+    const lowConflict = result.conflicts.find(c => c.severity === "LOW");
+    expect(lowConflict).toBeDefined();
+    expect(lowConflict?.fix).toBe("Review dates for alignment");
+  });
+
+  it("should include source names in fix recommendation", async () => {
+    const page: FirecrawlPageData = {
+      metadata: {
+        sourceURL: "https://example.com/blog/2024-01-15-post",
+        title: "My Post",
+      },
+      html: `
+        <script type="application/ld+json">
+        {
+          "@type": "Article",
+          "datePublished": "2024-02-21"
+        }
+        </script>
+      `,
+    };
+
+    const result = await analyzeDateConsistency(page);
+
+    const highConflict = result.conflicts.find(c => c.severity === "HIGH");
+    expect(highConflict?.fix).toContain("urlDate");
+    expect(highConflict?.fix).toContain("structuredData");
+  });
+});

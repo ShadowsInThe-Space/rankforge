@@ -26,6 +26,14 @@ model Audit {
   content   Json? // Content Intelligence findings
   links     Json? // Link Graph data
   summary   Json? // Executive Summary + Score Breakdown
+  
+  // Enterprise Analysis (Google Leak 2024)
+  dateConsistency  Json? // Date Consistency Analysis (Module F)
+  indexTier        Json? // Index Tier Prediction (Module B)
+  navboostScore    Int?  // NavBoost overall score (Module A)
+  navboostAnalysis Json? // NavBoost detailed analysis (Module A)
+  linkTierScore    Int?  // Link Tier overall score (Module E)
+  linkTierAnalysis Json? // Link Tier detailed analysis (Module E)
 
   // Error tracking
   error String?

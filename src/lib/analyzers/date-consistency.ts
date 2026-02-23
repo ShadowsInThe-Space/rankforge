@@ -48,6 +48,7 @@ export interface DateConsistencyReport {
     source2: string;
     date2: Date;
     discrepancyDays: number;
+    fix?: string;
   }>;
 
   score: number; // 0-100
@@ -392,6 +393,16 @@ export async function analyzeDateConsistency(
           severity = "MEDIUM";
         }
 
+        // Generate fix recommendation based on severity
+        let fix: string;
+        if (severity === "HIGH") {
+          fix = `Update ${source1.name} to match ${source2.name} date`;
+        } else if (severity === "MEDIUM") {
+          fix = `Add consistent date to ${source1.name}`;
+        } else {
+          fix = "Review dates for alignment";
+        }
+
         conflicts.push({
           severity,
           source1: source1.name,
@@ -399,6 +410,7 @@ export async function analyzeDateConsistency(
           source2: source2.name,
           date2: source2.date,
           discrepancyDays: diffDays,
+          fix,
         });
       }
     }

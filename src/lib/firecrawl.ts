@@ -6,6 +6,9 @@ import type {
   FirecrawlSearchResult,
 } from "@/types/audit";
 
+// Export alias for analyzers
+export type FirecrawlPage = FirecrawlPageData;
+
 const FIRECRAWL_URL = process.env.FIRECRAWL_API_URL || "http://localhost:3002";
 
 class FirecrawlClient {

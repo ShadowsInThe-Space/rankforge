@@ -36,8 +36,14 @@ export default function NewAuditPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Fehler beim Starten");
+        let errorMsg = "Fehler beim Starten";
+        try {
+          const data = await res.json();
+          errorMsg = data.error || errorMsg;
+        } catch {
+          // Ignore JSON parse errors
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await res.json();
