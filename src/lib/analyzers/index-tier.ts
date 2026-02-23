@@ -2,6 +2,8 @@
 // Index Tier Predictor - Based on Google API Leak 2024
 // Predicts which tier (Base/Zeppelin/Landfill) Google stores a page
 
+import * as cheerio from "cheerio";
+
 export enum IndexTier {
   BASE = "Base (Flash/RAM)",
   ZEPPELIN = "Zeppelin (SSD)",
@@ -370,6 +372,137 @@ function calculateUserEngagementScore(
 }
 
 /**
+ * Extract dates from various page sources
+ */
+function extractDatesFromPage(page: PageData, sitemapLastmod?: string): Date[] {
+  const dates: Date[] = [];
+
+  // 1. From metadata.lastModified
+  if (page.metadata?.lastModified) {
+    const lastMod = new Date(page.metadata.lastModified);
+    if (!isNaN(lastMod.getTime())) {
+      dates.push(lastMod);
+    }
+  }
+
+  // 2. From sitemap lastmod
+  if (sitemapLastmod) {
+    const sitemapDate = new Date(sitemapLastmod);
+    if (!isNaN(sitemapDate.getTime())) {
+      dates.push(sitemapDate);
+    }
+  }
+
+  // 3. From URL patterns (YYYY/MM/DD, YYYY-MM-DD)
+  if (page.url) {
+    const urlPatterns = [
+      /\/(\d{4})\/(\d{2})\/(\d{2})\//,
+      /\/(\d{4})-(\d{2})-(\d{2})/,
+      /\/(\d{4})(\d{2})(\d{2})/,
+    ];
+
+    for (const pattern of urlPatterns) {
+      const match = page.url.match(pattern);
+      if (match) {
+        const year = parseInt(match[1]);
+        const month = match[2] ? parseInt(match[2]) : 1;
+        const day = match[3] ? parseInt(match[3]) : 1;
+
+        if (year >= 1990 && year <= 2030 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          const urlDate = new Date(year, month - 1, day);
+          if (!isNaN(urlDate.getTime())) {
+            dates.push(urlDate);
+          }
+          break; // Only use first match
+        }
+      }
+    }
+  }
+
+  // 4. From structured data (JSON-LD)
+  if (page.html) {
+    const $ = cheerio.load(page.html);
+    const jsonLdScripts = $('script[type="application/ld+json"]');
+
+    for (const script of jsonLdScripts) {
+      try {
+        const data = JSON.parse($(script).html() || "{}");
+        const items = Array.isArray(data["@graph"]) ? data["@graph"] : [data];
+
+        for (const item of items) {
+          if (["Article", "NewsArticle", "BlogPosting"].includes(item["@type"])) {
+            const datePublished = item.datePublished || item.dateCreated;
+            if (datePublished) {
+              const sdDate = new Date(datePublished);
+              if (!isNaN(sdDate.getTime())) {
+                dates.push(sdDate);
+              }
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        // Invalid JSON
+      }
+    }
+  }
+
+  // 5. From OG meta tags
+  if (page.html) {
+    const $ = cheerio.load(page.html);
+    const ogUpdatedTime = $('meta[property="og:updated_time"]');
+    if (ogUpdatedTime.length > 0) {
+      const content = ogUpdatedTime.attr("content");
+      if (content) {
+        const ogDate = new Date(content);
+        if (!isNaN(ogDate.getTime())) {
+          dates.push(ogDate);
+        }
+      }
+    }
+  }
+
+  return dates;
+}
+
+/**
+ * Calculate date consistency score (0-100)
+ * Returns 100 only if all dates are consistent (all within 7 days)
+ * Returns lower scores for inconsistent dates
+ * Returns 50 for single date source (not perfect, but not broken either)
+ */
+function calculateDateConsistencyScore(dates: Date[]): number {
+  if (dates.length <= 1) {
+    return 50; // Single date source = not perfect, not broken
+  }
+
+  // Find the earliest and latest dates
+  let minDate = dates[0];
+  let maxDate = dates[0];
+
+  for (const date of dates) {
+    if (date < minDate) minDate = date;
+    if (date > maxDate) maxDate = date;
+  }
+
+  const diffMs = maxDate.getTime() - minDate.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  // Perfect consistency: all dates within 7 days
+  if (diffDays <= 7) {
+    return 100;
+  }
+
+  // Calculate score based on days difference
+  let score = 100;
+  if (diffDays > 7) score -= 15;
+  if (diffDays > 30) score -= 30;
+  if (diffDays > 90) score -= 50;
+
+  return Math.max(0, score);
+}
+
+/**
  * Main analyzer function
  * Predicts which Index Tier (Base/Zeppelin/Landfill) Google stores the page
  */
@@ -417,10 +550,24 @@ export async function predictIndexTier(
   // Internal backlinks bonus: +15 points per 5 backlinks
   const backlinkBonus = Math.floor((options?.internalBacklinks || 0) / 5) * 15;
 
-  // Apply date consistency bonus (if provided)
+  // Auto-calculate date consistency bonus if not provided
+  let dateConsistencyBonus = options?.dateConsistencyBonus ?? 0;
+
+  if (dateConsistencyBonus === 0) {
+    // Only auto-calculate if no explicit bonus was provided
+    const extractedDates = extractDatesFromPage(page, options?.sitemapLastmod);
+    const dateConsistencyScore = calculateDateConsistencyScore(extractedDates);
+
+    // Auto-add +5 bonus if perfect date consistency (score = 100)
+    if (dateConsistencyScore === 100) {
+      dateConsistencyBonus = 5;
+    }
+  }
+
+  // Apply all bonuses
   const finalScore = Math.min(
     100,
-    overallScore + backlinkBonus + (options?.dateConsistencyBonus ?? 0)
+    overallScore + backlinkBonus + dateConsistencyBonus
   );
 
   // Classify tier
