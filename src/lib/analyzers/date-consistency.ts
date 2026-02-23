@@ -384,6 +384,13 @@ export async function analyzeDateConsistency(
         ) {
           severity = "MEDIUM";
         }
+        // OG Date vs. Structured Data = MEDIUM
+        else if (
+          (source1.name === "ogDate" && source2.name === "structuredData") ||
+          (source1.name === "structuredData" && source2.name === "ogDate")
+        ) {
+          severity = "MEDIUM";
+        }
 
         conflicts.push({
           severity,

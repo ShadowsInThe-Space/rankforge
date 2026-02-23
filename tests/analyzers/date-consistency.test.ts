@@ -285,7 +285,7 @@ describe("Date Consistency Analyzer", () => {
     expect(result.dates.urlDate.found).toBe(false);
     expect(result.dates.titleDate.found).toBe(false);
     expect(result.dates.bylineDate.found).toBe(false);
-    expect(result.dates.ogDate?.found).toBe(false);
+    expect(result.dates.ogDate.found).toBe(false);
     expect(result.conflicts).toHaveLength(0);
     expect(result.score).toBe(100); // No conflicts = perfect score
   });
@@ -298,7 +298,7 @@ describe("Date Consistency - OG and Meta Tags", () => {
       html: `<meta property="og:updated_time" content="2024-06-15T10:00:00+00:00">`,
     };
     const result = await analyzeDateConsistency(page);
-    expect(result.dates.ogDate?.found).toBe(true);
+    expect(result.dates.ogDate.found).toBe(true);
   });
 
   it("should extract date from article:published_time", async () => {
@@ -307,7 +307,7 @@ describe("Date Consistency - OG and Meta Tags", () => {
       html: `<meta property="article:published_time" content="2024-03-20">`,
     };
     const result = await analyzeDateConsistency(page);
-    expect(result.dates.ogDate?.found).toBe(true);
+    expect(result.dates.ogDate.found).toBe(true);
   });
 
   it("should prefer og:updated_time over article:published_time", async () => {
@@ -319,9 +319,9 @@ describe("Date Consistency - OG and Meta Tags", () => {
       `,
     };
     const result = await analyzeDateConsistency(page);
-    expect(result.dates.ogDate?.found).toBe(true);
-    expect(result.dates.ogDate?.date?.getFullYear()).toBe(2024);
-    expect(result.dates.ogDate?.date?.getMonth()).toBe(5); // June
+    expect(result.dates.ogDate.found).toBe(true);
+    expect(result.dates.ogDate.date?.getFullYear()).toBe(2024);
+    expect(result.dates.ogDate.date?.getMonth()).toBe(5); // June
   });
 
   it("should return ogDate as undefined when no OG tags present", async () => {
@@ -330,6 +330,6 @@ describe("Date Consistency - OG and Meta Tags", () => {
       html: `<p>No OG tags here</p>`,
     };
     const result = await analyzeDateConsistency(page);
-    expect(result.dates.ogDate?.found).toBe(false);
+    expect(result.dates.ogDate.found).toBe(false);
   });
 });
