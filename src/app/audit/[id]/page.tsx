@@ -4,12 +4,21 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SEOHelpDialog } from "@/components/seo-help";
+import { DateConsistencyReportCard } from "@/components/date-consistency-report";
+import { IndexTierReportCard } from "@/components/index-tier-report";
+import { NavBoostReport } from "@/components/navboost-report";
+import { LinkTierReport } from "@/components/link-tier-report";
 import type {
   TechnicalAnalysis,
   ContentAnalysis,
   LinkGraphAnalysis,
   AuditSummary,
 } from "@/types/audit";
+import type { DateConsistencyReport } from "@/lib/analyzers/date-consistency";
+import type { TierPrediction } from "@/lib/analyzers/index-tier";
+import type { SiteNavBoostReport } from "@/lib/analyzers/navboost";
+import type { SiteLinkTierReport } from "@/lib/analyzers/link-tier";
 
 interface AuditData {
   id: string;
@@ -24,6 +33,18 @@ interface AuditData {
   content: ContentAnalysis | null;
   links: LinkGraphAnalysis | null;
   summary: AuditSummary | null;
+  dateConsistency: Array<{
+    url: string;
+    report: DateConsistencyReport;
+  }> | null;
+  indexTier: Array<{
+    url: string;
+    prediction: TierPrediction;
+  }> | null;
+  navboostScore: number | null;
+  navboostAnalysis: SiteNavBoostReport | null;
+  linkTierScore: number | null;
+  linkTierAnalysis: SiteLinkTierReport | null;
   pages: Array<{
     url: string;
     statusCode: number | null;
@@ -50,7 +71,7 @@ export default function AuditResultPage() {
   const [audit, setAudit] = useState<AuditData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
-    "overview" | "technical" | "content" | "links"
+    "overview" | "technical" | "content" | "links" | "dates" | "tiers" | "navboost" | "linkTiers"
   >("overview");
 
   useEffect(() => {
@@ -115,6 +136,10 @@ export default function AuditResultPage() {
     { key: "technical" as const, label: "Technical SEO" },
     { key: "content" as const, label: "Content" },
     { key: "links" as const, label: "Links" },
+    { key: "dates" as const, label: "Date Consistency" },
+    { key: "tiers" as const, label: "Index Tiers 💎" },
+    { key: "navboost" as const, label: "NavBoost 🚀" },
+    { key: "linkTiers" as const, label: "Link Tiers 🔗" },
   ];
 
   return (
@@ -125,7 +150,9 @@ export default function AuditResultPage() {
           <h1 className="text-3xl font-bold">{audit.domain}</h1>
           <p className="text-muted-foreground">{audit.url} - {audit.pagesFound} Seiten</p>
         </div>
-        {audit.score !== null && (
+        <div className="flex items-center gap-4">
+          <SEOHelpDialog />
+          {audit.score !== null && (
           <div
             className={`text-5xl font-bold ${
               audit.score >= 70
@@ -138,7 +165,8 @@ export default function AuditResultPage() {
             {audit.score}
             <span className="text-lg text-muted-foreground">/100</span>
           </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -163,6 +191,10 @@ export default function AuditResultPage() {
       {activeTab === "technical" && <TechnicalTab audit={audit} />}
       {activeTab === "content" && <ContentTab audit={audit} />}
       {activeTab === "links" && <LinksTab audit={audit} />}
+      {activeTab === "dates" && <DatesTab audit={audit} />}
+      {activeTab === "tiers" && <TiersTab audit={audit} />}
+      {activeTab === "navboost" && <NavBoostTab audit={audit} />}
+      {activeTab === "linkTiers" && <LinkTiersTab audit={audit} />}
     </div>
   );
 }
@@ -556,6 +588,373 @@ function LinksTab({ audit }: { audit: AuditData }) {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function DatesTab({ audit }: { audit: AuditData }) {
+  const dateAnalysis = audit.dateConsistency;
+  
+  if (!dateAnalysis || dateAnalysis.length === 0) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-muted-foreground">Keine Date Consistency Daten verfügbar</p>
+      </div>
+    );
+  }
+
+  // Calculate overall stats
+  const avgScore = Math.round(
+    dateAnalysis.reduce((sum, item) => sum + item.report.score, 0) / dateAnalysis.length
+  );
+  const highConflicts = dateAnalysis.filter((item) =>
+    item.report.conflicts.some((c) => c.severity === "HIGH")
+  ).length;
+  const mediumConflicts = dateAnalysis.filter((item) =>
+    item.report.conflicts.some((c) => c.severity === "MEDIUM")
+  ).length;
+  const pagesWithIssues = dateAnalysis.filter(
+    (item) => item.report.conflicts.length > 0
+  ).length;
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Overview */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p
+              className={`text-3xl font-bold ${
+                avgScore >= 90
+                  ? "text-green-500"
+                  : avgScore >= 70
+                  ? "text-yellow-500"
+                  : "text-red-500"
+              }`}
+            >
+              {avgScore}
+            </p>
+            <p className="text-xs text-muted-foreground">Avg. Score</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-3xl font-bold">{dateAnalysis.length}</p>
+            <p className="text-xs text-muted-foreground">Pages Analyzed</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-3xl font-bold text-red-500">{highConflicts}</p>
+            <p className="text-xs text-muted-foreground">High Priority</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-3xl font-bold text-orange-500">{mediumConflicts}</p>
+            <p className="text-xs text-muted-foreground">Medium Priority</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Info Card */}
+      <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+        <CardContent className="py-4">
+          <div className="flex items-start gap-3">
+            <div className="text-2xl">🔍</div>
+            <div>
+              <h4 className="font-semibold mb-1">Was ist Date Consistency? (Google Leak 2024)</h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                Google extrahiert Daten aus <strong>mehreren Quellen</strong>:
+              </p>
+              <div className="grid grid-cols-3 gap-2 text-sm mb-3">
+                <div className="bg-white dark:bg-gray-800 p-2 rounded">
+                  <strong>bylineDate</strong><br/>
+                  <span className="text-xs">Structured Data (JSON-LD)</span>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-2 rounded">
+                  <strong>URL-Datum</strong><br/>
+                  <span className="text-xs">Z.B. /2024/01/15/</span>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-2 rounded">
+                  <strong>Content</strong><br/>
+                  <span className="text-xs">Im Text gefunden</span>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                <strong>Wichtig:</strong> Wenn diese Daten inkonsistent sind (z.B. 2023 im Title, 2019 im Content),
+                kann Google die Seite <span className="text-red-500">schlechter ranken</span>!
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pages with Issues First */}
+      {pagesWithIssues > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-4 text-red-500">
+            Pages with Date Conflicts ({pagesWithIssues})
+          </h3>
+          <div className="space-y-4">
+            {dateAnalysis
+              .filter((item) => item.report.conflicts.length > 0)
+              .sort((a, b) => a.report.score - b.report.score)
+              .map((item, idx) => (
+                <DateConsistencyReportCard key={idx} report={item.report} url={item.url} />
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Perfect Pages */}
+      {dateAnalysis.length - pagesWithIssues > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-4 text-green-500">
+            Perfect Date Consistency ({dateAnalysis.length - pagesWithIssues})
+          </h3>
+          <div className="space-y-4">
+            {dateAnalysis
+              .filter((item) => item.report.conflicts.length === 0)
+              .map((item, idx) => (
+                <DateConsistencyReportCard key={idx} report={item.report} url={item.url} />
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TiersTab({ audit }: { audit: AuditData }) {
+  const tierAnalysis = audit.indexTier;
+
+  if (!tierAnalysis || tierAnalysis.length === 0) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-muted-foreground">
+          Keine Index Tier Daten verfügbar
+        </p>
+      </div>
+    );
+  }
+
+  // Calculate overall stats
+  const avgScore = Math.round(
+    tierAnalysis.reduce((sum, item) => sum + item.prediction.overallScore, 0) /
+      tierAnalysis.length
+  );
+
+  const baseTier = tierAnalysis.filter((item) =>
+    item.prediction.tier.includes("Base")
+  ).length;
+  const zeppelinTier = tierAnalysis.filter((item) =>
+    item.prediction.tier.includes("Zeppelin")
+  ).length;
+  const landfillTier = tierAnalysis.filter((item) =>
+    item.prediction.tier.includes("Landfill")
+  ).length;
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Overview */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className={`text-3xl font-bold ${avgScore >= 80 ? "text-green-600" : avgScore >= 50 ? "text-blue-600" : "text-orange-600"}`}>
+              {avgScore}
+            </p>
+            <p className="text-xs text-muted-foreground">Avg. Score</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-3xl font-bold text-green-600">💎 {baseTier}</p>
+            <p className="text-xs text-muted-foreground">Base (Premium)</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-3xl font-bold text-blue-600">👍 {zeppelinTier}</p>
+            <p className="text-xs text-muted-foreground">Zeppelin (Mid)</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-3xl font-bold text-orange-600">🗑️ {landfillTier}</p>
+            <p className="text-xs text-muted-foreground">Landfill (Low)</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Info Card */}
+      <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+        <CardContent className="py-4">
+          <div className="flex items-start gap-3">
+            <div className="text-2xl">💎</div>
+            <div>
+              <h4 className="font-semibold mb-1">Was sind Index Tiers? (Google Leak 2024)</h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                Google speichert Seiten in 3 Tiers basierend auf Qualität und Wichtigkeit:
+              </p>
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <div className="bg-green-100 dark:bg-green-900 p-2 rounded">
+                  <strong className="text-green-700">💎 Base</strong> (Flash/RAM)<br/>
+                  <span className="text-xs">Premium-Tier, höchster Link-Wert, häufig gecrawlt</span>
+                </div>
+                <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded">
+                  <strong className="text-blue-700">👍 Zeppelin</strong> (SSD)<br/>
+                  <span className="text-xs">Mittleres Tier, guter Link-Wert, mittlere Crawl-Frequenz</span>
+                </div>
+                <div className="bg-orange-100 dark:bg-orange-900 p-2 rounded">
+                  <strong className="text-orange-700">🗑️ Landfill</strong> (HDD)<br/>
+                  <span className="text-xs">Niedrigste Priorität, kaum gecrawlt, schlechtes Ranking</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                Links von Base-Tier Seiten sind am wertvollsten für dein Ranking!
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Base Tier Pages */}
+      {baseTier > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-4 text-green-600 flex items-center gap-2">
+            <span>💎</span>
+            <span>Base Tier Pages ({baseTier})</span>
+          </h3>
+          <div className="space-y-4">
+            {tierAnalysis
+              .filter((item) => item.prediction.tier.includes("Base"))
+              .sort((a, b) => b.prediction.overallScore - a.prediction.overallScore)
+              .map((item, idx) => (
+                <IndexTierReportCard key={idx} prediction={item.prediction} url={item.url} />
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Zeppelin Tier Pages */}
+      {zeppelinTier > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-4 text-blue-600 flex items-center gap-2">
+            <span>👍</span>
+            <span>Zeppelin Tier Pages ({zeppelinTier})</span>
+          </h3>
+          <div className="space-y-4">
+            {tierAnalysis
+              .filter((item) => item.prediction.tier.includes("Zeppelin"))
+              .sort((a, b) => b.prediction.overallScore - a.prediction.overallScore)
+              .map((item, idx) => (
+                <IndexTierReportCard key={idx} prediction={item.prediction} url={item.url} />
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Landfill Tier Pages */}
+      {landfillTier > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-4 text-orange-600 flex items-center gap-2">
+            <span>🗑️</span>
+            <span>Landfill Tier Pages ({landfillTier}) - Needs Improvement</span>
+          </h3>
+          <div className="space-y-4">
+            {tierAnalysis
+              .filter((item) => item.prediction.tier.includes("Landfill"))
+              .sort((a, b) => a.prediction.overallScore - b.prediction.overallScore)
+              .map((item, idx) => (
+                <IndexTierReportCard key={idx} prediction={item.prediction} url={item.url} />
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NavBoostTab({ audit }: { audit: AuditData }) {
+  if (!audit.navboostAnalysis) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-muted-foreground text-center">
+            NavBoost-Analyse nicht verfügbar
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* German Explanation Card */}
+      <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+        <CardContent className="py-4">
+          <h4 className="font-semibold mb-2">💡 Was ist NavBoost?</h4>
+          <p className="text-sm text-muted-foreground mb-2">
+            NavBoost ist ein Google-Algorithmus aus dem Leak 2024, der User-Engagement misst.
+          </p>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div>📊 <strong>CTR</strong>: Klickrate aus Suchergebnissen</div>
+            <div>⏱️ <strong>Dwell Time</strong>: Verweildauer auf der Seite</div>
+            <div>🔙 <strong>Pogo-Sticking</strong>: Schnelles Zurückspringen (negativ)</div>
+            <div>👍 <strong>Last-Click</strong>: Nutzer findet was er sucht</div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <NavBoostReport report={audit.navboostAnalysis} />
+    </div>
+  );
+}
+
+function LinkTiersTab({ audit }: { audit: AuditData }) {
+  if (!audit.linkTierAnalysis) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-muted-foreground text-center">
+            Link Tier-Analyse nicht verfügbar
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* German Explanation Card */}
+      <Card className="bg-purple-50 dark:bg-purple-950 border-purple-200 dark:border-purple-800">
+        <CardContent className="py-4">
+          <h4 className="font-semibold mb-2">🔗 Was sind Link Tiers?</h4>
+          <p className="text-sm text-muted-foreground mb-2">
+            Der Wert eines Links hängt davon ab, von welcher Seite er kommt!
+          </p>
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="bg-green-100 dark:bg-green-900 p-2 rounded">
+              <strong className="text-green-700">💎 Base</strong> (3.0x)<br/>
+              <span className="text-xs">Höchster Link-Wert</span>
+            </div>
+            <div className="bg-blue-100 dark:bg-blue-900 p-2 rounded">
+              <strong className="text-blue-700">👍 Zeppelin</strong> (1.5x)<br/>
+              <span className="text-xs">Mittlerer Link-Wert</span>
+            </div>
+            <div className="bg-red-100 dark:bg-red-900 p-2 rounded">
+              <strong className="text-red-700">🗑️ Landfill</strong> (0.5x)<br/>
+              <span className="text-xs">Niedrigster Link-Wert</span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            Links von Base-Tier Seiten sind 6x wertvoller als Links von Landfill-Seiten!
+          </p>
+        </CardContent>
+      </Card>
+
+      <LinkTierReport report={audit.linkTierAnalysis} />
     </div>
   );
 }
