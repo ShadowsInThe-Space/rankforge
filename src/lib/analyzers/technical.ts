@@ -58,7 +58,8 @@ function jaccardSimilarity(a: string, b: string): number {
 }
 
 function parseCanonical(html: string): string | null {
-  const match = html.match(/<link[^>]+rel\s*=\s*["']canonical["'][^>]*>/i);
+  // More robust regex - handles various HTML formats
+  const match = html.match(/<link[^>]*\s+rel\s*=\s*["']?canonical["']?[^>]*>/i);
   if (!match) return null;
   const hrefMatch = match[0].match(/href\s*=\s*["']([^"']+)["']/i);
   return hrefMatch ? hrefMatch[1] : null;
@@ -220,7 +221,13 @@ function checkCanonicals(pages: PageInput[]): SeoIssue[] {
     }
 
     const canonical = parseCanonical(page.html);
-    if (!canonical) {
+
+    // Firecrawl often doesn't return the <head> section - only <body>
+    // Check if we actually have head content before flagging canonical issues
+    const hasHeadContent = page.html && page.html.includes("<head>");
+
+    if (!canonical && hasHeadContent) {
+      // Only flag as missing if we have full HTML
       issues.push(
         issue(
           "canonical",
@@ -230,7 +237,12 @@ function checkCanonicals(pages: PageInput[]): SeoIssue[] {
           'Add <link rel="canonical" href="..."> to the page head',
         ),
       );
-    } else {
+    } else if (!canonical && !hasHeadContent) {
+      // Can't verify - Firecrawl didn't capture head
+      // Skip this check gracefully
+    }
+
+    if (canonical) {
       const existing = canonicalMap.get(canonical) || [];
       existing.push(page.url);
       canonicalMap.set(canonical, existing);
