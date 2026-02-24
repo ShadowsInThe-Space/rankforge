@@ -126,11 +126,37 @@ async function runAuditPipeline(
     data: { status: "analyzing", pagesFound: crawlStatus.data.length },
   });
 
+  // Phase 4.1: Headless Browser Capture - Get full HTML including <head>
+  // Firecrawl only captures <body>, so we need Playwright for technical SEO
+  const { captureMultiplePages, closeBrowser } = await import("@/lib/headless-browser");
+
+  // Get unique URLs to capture
+  const pageUrls = crawlStatus.data
+    .map(p => p.metadata?.sourceURL)
+    .filter((url): url is string => !!url);
+
+  console.log(`Capturing full HTML for ${pageUrls.length} pages using headless browser...`);
+  const fullHtmlData = await captureMultiplePages(pageUrls, 3);
+  console.log(`Captured full HTML for ${fullHtmlData.size} pages`);
+
+  // Close browser after capture
+  await closeBrowser();
+
   for (const page of crawlStatus.data) {
     const pageUrl = page.metadata?.sourceURL || "";
     if (!pageUrl) continue;
 
-    const headings = extractHeadings(page.html || "");
+    // Use full HTML from headless browser if available, otherwise fallback to Firecrawl
+    const headlessData = fullHtmlData.get(pageUrl);
+    const fullHtml = (headlessData?.html) || (page.html) || "";
+
+    // Prefer title/description/canonical from headless browser (more accurate)
+    const headlessTitle = headlessData?.title;
+    const headlessDesc = headlessData?.description;
+    const title = (headlessTitle !== undefined && headlessTitle !== null) ? headlessTitle : (page.metadata?.title ?? null);
+    const description = (headlessDesc !== undefined && headlessDesc !== null) ? headlessDesc : (page.metadata?.description ?? null);
+
+    const headings = extractHeadings(fullHtml);
     const wordCount = countWords(page.markdown || "");
 
     await prisma.page.create({
@@ -138,12 +164,12 @@ async function runAuditPipeline(
         auditId,
         url: pageUrl,
         statusCode: page.metadata?.statusCode ?? null,
-        title: page.metadata?.title ?? null,
-        description: page.metadata?.description ?? null,
+        title,
+        description,
         h1: headings.h1[0] ?? null,
         wordCount,
         markdown: page.markdown ?? null,
-        html: page.html ?? null,
+        html: fullHtml,
         links: JSON.parse(JSON.stringify(categorizeLinks(page.links || [], pageUrl, domain))),
         headings: JSON.parse(JSON.stringify(headings)),
         contentType: null,
