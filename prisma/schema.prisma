@@ -16,6 +16,10 @@ model Audit {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  // User relation for multi-tenancy
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Firecrawl Job Tracking
   crawlJobId String?
   pagesFound Int      @default(0)
@@ -47,6 +51,7 @@ model Audit {
 model Page {
   id          String  @id @default(cuid())
   auditId     String
+  userId      String? // Denormalized for easier queries
   url         String
   statusCode  Int?
   title       String?
@@ -65,4 +70,17 @@ model Page {
 
   @@index([auditId])
   @@index([url])
+  @@index([userId])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String   // Hashed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  audits Audit[]
+  pages  Page[]
 }
