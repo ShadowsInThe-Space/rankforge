@@ -5,6 +5,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Audit {
@@ -41,6 +42,10 @@ model Audit {
 
   // Error tracking
   error String?
+
+  // Sharing
+  isPublic    Boolean  @default(false)
+  shareToken  String?  @unique // UUID for unguessable share links
 
   pages Page[]
 
@@ -82,5 +87,4 @@ model User {
   updatedAt DateTime @updatedAt
 
   audits Audit[]
-  pages  Page[]
 }
