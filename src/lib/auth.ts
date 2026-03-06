@@ -6,6 +6,9 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
 }
 
+// Type assertion after validation
+const jwtSecret: string = JWT_SECRET;
+
 export interface AuthUser {
   userId: string;
   email: string;
@@ -21,7 +24,7 @@ export function getAuthUser(request: NextRequest): AuthUser | null {
   const token = authHeader.substring(7);
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
+    const decoded = jwt.verify(token, jwtSecret) as AuthUser;
     return decoded;
   } catch {
     return null;

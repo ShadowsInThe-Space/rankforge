@@ -511,7 +511,7 @@ describe('NavBoost Analyzer', () => {
   describe('Edge Cases', () => {
     it('should handle missing metadata gracefully', () => {
       const page = createMockPage({
-        metadata: undefined as any
+        metadata: undefined as unknown
       });
       
       const analysis = analyzePageNavBoost(page, [page]);

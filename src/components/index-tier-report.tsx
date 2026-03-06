@@ -11,12 +11,6 @@ interface Props {
 }
 
 export function IndexTierReportCard({ prediction, url }: Props) {
-  const getTierColor = (tier: IndexTier) => {
-    if (tier.includes("Base")) return "text-green-600 dark:text-green-400";
-    if (tier.includes("Zeppelin")) return "text-blue-600 dark:text-blue-400";
-    return "text-orange-600 dark:text-orange-400";
-  };
-
   const getTierIcon = (tier: IndexTier) => {
     if (tier.includes("Base")) return "💎";
     if (tier.includes("Zeppelin")) return "👍";
@@ -263,7 +257,7 @@ export function IndexTierReportCard({ prediction, url }: Props) {
           <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
             {prediction.tier.includes("Base") && (
               <>
-                <li>This page is stored in Google's premium tier (Flash/RAM)</li>
+                <li>This page is stored in Google&apos;s premium tier (Flash/RAM)</li>
                 <li>Links FROM this page have HIGHEST value</li>
                 <li>Google crawls this page frequently</li>
                 <li>Strong ranking potential</li>
@@ -271,7 +265,7 @@ export function IndexTierReportCard({ prediction, url }: Props) {
             )}
             {prediction.tier.includes("Zeppelin") && (
               <>
-                <li>This page is stored in Google's mid-tier (SSD)</li>
+                <li>This page is stored in Google&apos;s mid-tier (SSD)</li>
                 <li>Links from this page have GOOD value</li>
                 <li>Decent crawl frequency and ranking potential</li>
                 <li>Can reach Base tier with improvements</li>
@@ -279,7 +273,7 @@ export function IndexTierReportCard({ prediction, url }: Props) {
             )}
             {prediction.tier.includes("Landfill") && (
               <>
-                <li>This page is stored in Google's low-priority tier (HDD)</li>
+                <li>This page is stored in Google&apos;s low-priority tier (HDD)</li>
                 <li>Links from this page have LOW value</li>
                 <li>Rarely crawled, poor ranking potential</li>
                 <li>Needs significant improvements to rank well</li>

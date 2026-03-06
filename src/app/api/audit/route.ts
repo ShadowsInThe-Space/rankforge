@@ -379,7 +379,7 @@ async function runAuditPipeline(
   }
 
   // Helper: Safe JSON serialization (handles Dates + Maps)
-  const safeSerialize = (obj: any) => {
+  const safeSerialize = (obj: unknown) => {
     return JSON.parse(JSON.stringify(obj, (key, value) => {
       if (value instanceof Date) {
         return value.toISOString();

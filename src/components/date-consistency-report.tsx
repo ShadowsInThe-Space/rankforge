@@ -138,7 +138,7 @@ export function DateConsistencyReportCard({ report, url }: Props) {
               </p>
               {report.dates.titleDate.text && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Text: "{report.dates.titleDate.text}"
+                  Text: &quot;{report.dates.titleDate.text}&quot;
                 </p>
               )}
             </div>

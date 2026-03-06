@@ -3,6 +3,7 @@
 // Predicts which tier (Base/Zeppelin/Landfill) Google stores a page
 
 import * as cheerio from "cheerio";
+import type { HeadingStructure } from "@/types/audit";
 
 export enum IndexTier {
   BASE = "Base (Flash/RAM)",
@@ -63,9 +64,9 @@ interface PageData {
   url: string;
   html?: string;
   markdown?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   wordCount?: number;
-  headings?: any;
+  headings?: HeadingStructure;
   links?: { internal: string[]; external: string[] };
 }
 
@@ -138,7 +139,7 @@ function calculateFreshnessScore(
  */
 function calculateUpdateFrequencyScore(
   url: string,
-  metadata?: any
+  metadata?: Record<string, unknown>
 ): {
   estimatedFrequency:
     | "daily"
@@ -265,7 +266,7 @@ function calculateBacklinkQualityScore(options?: {
  */
 function calculatePageSpeedScore(
   html?: string,
-  metadata?: any
+  metadata?: Record<string, unknown>
 ): {
   lcp: number | null;
   inp: number | null;
@@ -313,7 +314,7 @@ function calculatePageSpeedScore(
 function calculateUserEngagementScore(
   wordCount?: number,
   html?: string,
-  headings?: any,
+  headings?: HeadingStructure,
   links?: { internal: string[]; external: string[] }
 ): {
   wordCount: number;
@@ -343,7 +344,7 @@ function calculateUserEngagementScore(
 
   // Check heading structure
   const headingDepth = headings
-    ? Object.keys(headings).filter((key) => headings[key].length > 0).length
+    ? (Object.keys(headings) as Array<keyof HeadingStructure>).filter((key) => headings[key].length > 0).length
     : 0;
 
   if (headingDepth >= 3) {
@@ -379,7 +380,7 @@ function extractDatesFromPage(page: PageData, sitemapLastmod?: string): Date[] {
 
   // 1. From metadata.lastModified
   if (page.metadata?.lastModified) {
-    const lastMod = new Date(page.metadata.lastModified);
+    const lastMod = new Date(String(page.metadata.lastModified));
     if (!isNaN(lastMod.getTime())) {
       dates.push(lastMod);
     }
@@ -514,7 +515,7 @@ export async function predictIndexTier(
 
   // Extract Last-Modified from metadata (if available)
   const lastModified = page.metadata?.lastModified
-    ? new Date(page.metadata.lastModified)
+    ? new Date(String(page.metadata.lastModified))
     : null;
 
   // Calculate factor scores

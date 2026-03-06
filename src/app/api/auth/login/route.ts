@@ -8,6 +8,9 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
 }
 
+// Type assertion after validation
+const jwtSecret: string = JWT_SECRET;
+
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json();
@@ -44,7 +47,7 @@ export async function POST(request: NextRequest) {
     // Generate token
     const token = jwt.sign(
       { userId: user.id, email: user.email },
-      JWT_SECRET,
+      jwtSecret,
       { expiresIn: '7d' }
     );
 

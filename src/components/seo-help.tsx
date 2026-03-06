@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { HelpCircle, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface HelpItem {
   term: string;

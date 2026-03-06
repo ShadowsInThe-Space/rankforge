@@ -74,16 +74,7 @@ export default function AuditResultPage() {
     "overview" | "technical" | "content" | "links" | "dates" | "tiers" | "navboost" | "linkTiers"
   >("overview");
 
-  useEffect(() => {
-    fetchAudit();
-  }, [id]);
-
-  useEffect(() => {
-    if (!audit || ["done", "error"].includes(audit.status)) return;
-    const interval = setInterval(fetchAudit, 3000);
-    return () => clearInterval(interval);
-  }, [audit?.status]);
-
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   async function fetchAudit() {
     const res = await fetch(`/api/audit/${id}`);
     if (res.ok) {
@@ -91,6 +82,18 @@ export default function AuditResultPage() {
     }
     setLoading(false);
   }
+
+  useEffect(() => {
+    fetchAudit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  useEffect(() => {
+    if (!audit || ["done", "error"].includes(audit.status)) return;
+    const interval = setInterval(fetchAudit, 3000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audit?.status]);
 
   if (loading) {
     return (
@@ -316,9 +319,10 @@ function OverviewTab({ audit }: { audit: AuditData }) {
 
 function TechnicalTab({ audit }: { audit: AuditData }) {
   const technical = audit.technical;
+  const [filter, setFilter] = useState<"all" | "P0" | "P1" | "P2">("all");
+  
   if (!technical) return <p className="text-muted-foreground">Keine Daten</p>;
 
-  const [filter, setFilter] = useState<"all" | "P0" | "P1" | "P2">("all");
   const filtered =
     filter === "all"
       ? technical.issues
