@@ -33,7 +33,7 @@ export function RegisterForm() {
         throw new Error(data.error || "Registration failed");
       }
 
-      router.push("/audit");
+      router.push("/rankforge/audit");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");

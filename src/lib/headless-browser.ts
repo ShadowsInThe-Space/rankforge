@@ -25,7 +25,10 @@ async function getBrowser(): Promise<Browser> {
  * Capture full HTML including <head> section using headless browser
  * This complements Firecrawl which only captures <body>
  */
-export async function captureFullPageHtml(url: string): Promise<{
+export async function captureFullPageHtml(
+  url: string, 
+  timeoutMs: number = 30000
+): Promise<{
   html: string;
   title: string;
   description: string | null;
@@ -38,10 +41,16 @@ export async function captureFullPageHtml(url: string): Promise<{
 
   try {
     // Navigate with networkidle to ensure page is fully loaded
-    const response = await page.goto(url, {
-      waitUntil: 'networkidle',
-      timeout: 30000,
-    });
+    // Add timeout to prevent hanging
+    const response = await Promise.race([
+      page.goto(url, {
+        waitUntil: 'networkidle',
+        timeout: timeoutMs,
+      }),
+      new Promise<null>((_, reject) => 
+        setTimeout(() => reject(new Error(`Page load timeout after ${timeoutMs}ms`)), timeoutMs)
+      )
+    ]);
 
     if (!response || response.status() >= 400) {
       console.warn(`Failed to load ${url}: ${response?.status()}`);
@@ -107,7 +116,8 @@ export async function captureFullPageHtml(url: string): Promise<{
  */
 export async function captureMultiplePages(
   urls: string[],
-  concurrency = 5
+  concurrency = 5,
+  pageTimeoutMs: number = 30000
 ): Promise<Map<string, Awaited<ReturnType<typeof captureFullPageHtml>> | undefined>> {
   const results = new Map<string, Awaited<ReturnType<typeof captureFullPageHtml>> | undefined>();
 
@@ -115,7 +125,13 @@ export async function captureMultiplePages(
   for (let i = 0; i < urls.length; i += concurrency) {
     const batch = urls.slice(i, i + concurrency);
     const promises = batch.map(async (url) => {
-      const data = await captureFullPageHtml(url);
+      // Add per-page timeout to prevent hanging
+      const data = await Promise.race([
+        captureFullPageHtml(url, pageTimeoutMs),
+        new Promise<null>((resolve) => 
+          setTimeout(() => resolve(null), pageTimeoutMs)
+        )
+      ]).catch(() => null);
       return { url, data };
     });
 

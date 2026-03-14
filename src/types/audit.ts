@@ -13,8 +13,12 @@ export type IssueCategory =
   | "images"
   | "security"
   | "performance"
+  | "mobile"
+  | "schema"
+  | "twitter"
   | "indexing"
-  | "og";
+  | "og"
+  | "core-web-vitals";
 
 export interface SeoIssue {
   type: IssueCategory;
@@ -22,6 +26,46 @@ export interface SeoIssue {
   page: string;
   message: string;
   fix: string;
+}
+
+// ─── Core Web Vitals Types ────────────────────────────────
+
+export interface CoreWebVitals {
+  lcp: number | null; // Largest Contentful Paint in seconds
+  fid: number | null; // First Input Delay in ms
+  cls: number | null; // Cumulative Layout Shift score
+  lcpRating: "good" | "needs-improvement" | "poor" | null;
+  fidRating: "good" | "needs-improvement" | "poor" | null;
+  clsRating: "good" | "needs-improvement" | "poor" | null;
+  overallRating: "good" | "needs-improvement" | "poor";
+}
+
+export interface CoreWebVitalsResult {
+  url: string;
+  metrics: CoreWebVitals;
+  analyzedAt: string;
+}
+
+// PageSpeed Insights API response types
+export interface PageSpeedInsightsResponse {
+  lighthouseResult: {
+    audits: Record<string, {
+      numericValue?: number;
+      score?: number;
+      displayValue?: string;
+    }>;
+    categories: {
+      performance: {
+        score: number;
+      };
+    };
+  };
+  loadingExperience: {
+    metrics: Record<string, {
+      percentile: number;
+      category: "FAST" | "AVERAGE" | "SLOW";
+    }>;
+  };
 }
 
 // ─── Technical SEO Analysis ────────────────────────────────
@@ -55,6 +99,55 @@ export interface LinkGraphAnalysis {
   avgInternalLinks: number;
   maxCrawlDepth: number;
   sitemapCoverage: number; // 0-1
+  // Backlink Analysis v2.0
+  externalBacklinks?: ExternalBacklinkAnalysis;
+}
+
+// ─── External Backlink Analysis ───────────────────────────
+
+export interface ExternalBacklinkAnalysis {
+  totalExternalLinks: number;
+  uniqueDomains: number;
+  pagesWithExternalLinks: number;
+  avgExternalLinksPerPage: number;
+  linkQuality: LinkQualityMetrics;
+  anchorText: AnchorTextAnalysis;
+  pages: ExternalBacklinkPage[];
+}
+
+export interface ExternalBacklinkPage {
+  url: string;
+  externalLinks: ExternalLink[];
+  totalExternalLinks: number;
+}
+
+export interface ExternalLink {
+  url: string;
+  text: string; // Anchor text
+  rel: string[]; // nofollow, sponsored, ugc, etc.
+  isDoFollow: boolean;
+}
+
+export interface AnchorTextAnalysis {
+  exactMatch: number;
+  partialMatch: number;
+  branded: number;
+  naked: number;
+  generic: number;
+  image: number;
+  totalAnchors: number;
+  distribution: Record<string, number>;
+}
+
+export interface LinkQualityMetrics {
+  doFollow: number;
+  noFollow: number;
+  sponsored: number;
+  ugc: number;
+  megaSites: number; // Wikipedia, YouTube, etc.
+  socialMedia: number;
+  news: number;
+  eduGov: number;
 }
 
 // ─── Content Intelligence ──────────────────────────────────
@@ -121,11 +214,19 @@ export interface ContentAnalysis {
 
 // ─── Score Breakdown ───────────────────────────────────────
 
+export type ScoreGrade = "A" | "B" | "C" | "D" | "F";
+
 export interface ScoreBreakdown {
   overall: number; // 0-100
-  technical: number;
-  content: number;
-  links: number;
+  // New granular breakdown (v2.0)
+  technical?: number;
+  onPage?: number;
+  contentQuality?: number;
+  userSignals?: number;
+  backlinks?: number;
+  // Legacy support (v1.0)
+  content?: number;
+  links?: number;
 }
 
 // ─── AI Recommendations ───────────────────────────────────
@@ -163,16 +264,19 @@ export interface FirecrawlCrawlResult {
 }
 
 export interface FirecrawlCrawlStatus {
-  status: "scraping" | "completed" | "failed";
+  status: "scraping" | "completed" | "failed" | "timeout";
   total: number;
   completed: number;
   data: FirecrawlPageData[];
+  statusNotes?: string;
 }
 
 export interface FirecrawlPageData {
   markdown?: string;
   html?: string;
+  rawHtml?: string;
   links?: string[];
+  screenshot?: string;
   metadata?: {
     title?: string;
     description?: string;

@@ -340,7 +340,7 @@ export function analyzeLinkTiers(
   
   // Find pages with low link tier scores that need links
   const needsLinks = Object.entries(pageAnalyses)
-    .filter(([_, analysis]) => analysis.linkTierScore < 50 && analysis.inboundLinks.total < 5)
+    .filter(([/*url*/, analysis]) => analysis.linkTierScore < 50 && analysis.inboundLinks.total < 5)
     .slice(0, 5);
   
   for (const [targetUrl, analysis] of needsLinks) {

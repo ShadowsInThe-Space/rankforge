@@ -4,6 +4,7 @@ import type {
   IssueSeverity,
   IssueCategory,
   HeadingStructure,
+  CoreWebVitalsResult,
 } from "@/types/audit";
 
 // ─── Input Type ──────────────────────────────────────────
@@ -19,6 +20,13 @@ interface PageInput {
   html: string | null;
   links: unknown; // JSON { internal: string[], external: string[] }
   headings: unknown; // JSON HeadingStructure
+  coreWebVitals?: CoreWebVitalsResult; // Optional Core Web Vitals data
+}
+
+// ─── Extended Input Type for Pages with Core Web Vitals ───
+
+interface PageInputWithCWV extends PageInput {
+  coreWebVitals: CoreWebVitalsResult;
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -605,9 +613,114 @@ function checkDescriptionLength(pages: PageInput[]): SeoIssue[] {
   return issues;
 }
 
+// ─── Core Web Vitals Checks (P0/P1) ───────────────────────
+// Based on Google's Core Web Vitals thresholds
+
+function checkLCP(pages: PageInputWithCWV[]): SeoIssue[] {
+  const issues: SeoIssue[] = [];
+  
+  for (const page of pages) {
+    const cwv = page.coreWebVitals?.metrics;
+    if (!cwv || cwv.lcp === null) continue;
+    
+    // LCP thresholds: Good ≤2.5s, Needs Improvement ≤4.0s, Poor >4.0s
+    if (cwv.lcpRating === "poor") {
+      issues.push(
+        issue(
+          "core-web-vitals",
+          "P0",
+          page.url,
+          `Poor LCP (${cwv.lcp.toFixed(2)}s) - Largest Contentful Paint too slow`,
+          "Optimize LCP: improve server response time, use CDN, optimize images, preload hero image",
+        ),
+      );
+    } else if (cwv.lcpRating === "needs-improvement") {
+      issues.push(
+        issue(
+          "core-web-vitals",
+          "P1",
+          page.url,
+          `LCP needs improvement (${cwv.lcp.toFixed(2)}s)`,
+          "Improve LCP: enable text compression, optimize CSS delivery, reduce render-blocking resources",
+        ),
+      );
+    }
+  }
+  return issues;
+}
+
+function checkFID(pages: PageInputWithCWV[]): SeoIssue[] {
+  const issues: SeoIssue[] = [];
+  
+  for (const page of pages) {
+    const cwv = page.coreWebVitals?.metrics;
+    if (!cwv || cwv.fid === null) continue;
+    
+    // FID thresholds: Good ≤100ms, Needs Improvement ≤300ms, Poor >300ms
+    if (cwv.fidRating === "poor") {
+      issues.push(
+        issue(
+          "core-web-vitals",
+          "P0",
+          page.url,
+          `Poor FID (${cwv.fid}ms) - First Input Delay too high`,
+          "Optimize FID: reduce JavaScript execution time, break up long tasks, defer non-critical JS",
+        ),
+      );
+    } else if (cwv.fidRating === "needs-improvement") {
+      issues.push(
+        issue(
+          "core-web-vitals",
+          "P1",
+          page.url,
+          `FID needs improvement (${cwv.fid}ms)`,
+          "Improve FID: minimize main thread work, reduce payload size, use code splitting",
+        ),
+      );
+    }
+  }
+  return issues;
+}
+
+function checkCLS(pages: PageInputWithCWV[]): SeoIssue[] {
+  const issues: SeoIssue[] = [];
+  
+  for (const page of pages) {
+    const cwv = page.coreWebVitals?.metrics;
+    if (!cwv || cwv.cls === null) continue;
+    
+    // CLS thresholds: Good ≤0.1, Needs Improvement ≤0.25, Poor >0.25
+    if (cwv.clsRating === "poor") {
+      issues.push(
+        issue(
+          "core-web-vitals",
+          "P0",
+          page.url,
+          `Poor CLS (${cwv.cls.toFixed(3)}) - Cumulative Layout Shift too high`,
+          "Fix CLS: set explicit width/height for images and embeds, reserve space for ads, avoid dynamic content injection",
+        ),
+      );
+    } else if (cwv.clsRating === "needs-improvement") {
+      issues.push(
+        issue(
+          "core-web-vitals",
+          "P1",
+          page.url,
+          `CLS needs improvement (${cwv.cls.toFixed(3)})`,
+          "Improve CLS: add size attributes to media, use font-display: swap, pre-load fonts",
+        ),
+      );
+    }
+  }
+  return issues;
+}
+
 // ─── Main Analyzer ───────────────────────────────────────
 
-export function analyzeTechnicalSeo(pages: PageInput[]): TechnicalAnalysis {
+export function analyzeTechnicalSeo(
+  pages: PageInput[], 
+  coreWebVitals?: CoreWebVitalsResult[]
+): TechnicalAnalysis {
   const allIssues: SeoIssue[] = [
     // P0 Checks
     ...checkDuplicateTitles(pages),
@@ -628,6 +741,26 @@ export function analyzeTechnicalSeo(pages: PageInput[]): TechnicalAnalysis {
     ...checkUrlLength(pages),
     ...checkDescriptionLength(pages),
   ];
+
+  // Add Core Web Vitals issues if data is available
+  if (coreWebVitals && coreWebVitals.length > 0) {
+    // Map pages with their Core Web Vitals data
+    const pagesWithCWV: PageInputWithCWV[] = pages.map(page => {
+      const matchedCwv = coreWebVitals.find((c: CoreWebVitalsResult) => {
+        // Match by URL (handle trailing slashes)
+        const pageUrl = page.url.replace(/\/$/, "");
+        const cwvUrl = c.url.replace(/\/$/, "");
+        return pageUrl === cwvUrl || pageUrl.includes(cwvUrl) || cwvUrl.includes(pageUrl);
+      });
+      return { ...page, coreWebVitals: matchedCwv };
+    }).filter((p): p is PageInputWithCWV => !!p.coreWebVitals);
+    
+    if (pagesWithCWV.length > 0) {
+      allIssues.push(...checkLCP(pagesWithCWV));
+      allIssues.push(...checkFID(pagesWithCWV));
+      allIssues.push(...checkCLS(pagesWithCWV));
+    }
+  }
 
   const pagesWithIssues = new Set(allIssues.map((i) => i.page)).size;
 

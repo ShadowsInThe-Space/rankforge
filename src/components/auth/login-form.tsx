@@ -32,7 +32,7 @@ export function LoginForm() {
         throw new Error(data.error || "Login failed");
       }
 
-      router.push("/audit");
+      router.push("/rankforge/audit");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");

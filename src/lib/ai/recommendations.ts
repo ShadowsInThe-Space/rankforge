@@ -1,4 +1,11 @@
 import { firecrawl } from "@/lib/firecrawl";
+import {
+  sanitizeForPrompt,
+  sanitizeDomain,
+  isUrlSafe,
+  buildSafePrompt,
+  logSecurityEvent,
+} from "@/lib/security/prompt-injection";
 import type {
   TechnicalAnalysis,
   LinkGraphAnalysis,
@@ -22,7 +29,22 @@ interface AnalysisData {
 export async function generateRecommendations(
   data: AnalysisData
 ): Promise<AuditSummary> {
-  const issuesSummary = summarizeIssues(data);
+  // Security: Sanitize domain before use
+  const safeDomain = sanitizeDomain(data.domain);
+  
+  if (!safeDomain) {
+    logSecurityEvent('url_rejected', { type: 'invalid_domain', input: safeDomain || data.domain });
+    return buildFallbackSummary(data, safeDomain);
+  }
+
+  // Security: Validate URL before making API call
+  const urlCheck = isUrlSafe(`https://${safeDomain}`);
+  if (!urlCheck.valid) {
+    logSecurityEvent('url_rejected', { type: 'unsafe_url', input: urlCheck.reason });
+    return buildFallbackSummary(data, safeDomain);
+  }
+
+  const issuesSummary = sanitizeForPrompt(summarizeIssues(data));
 
   try {
     const result = await firecrawl.extract<{
@@ -41,7 +63,7 @@ export async function generateRecommendations(
         actions: string[];
       }>;
     }>(
-      [`https://${data.domain}`],
+      [`https://${safeDomain}`],
       {
         type: "object",
         properties: {
@@ -73,11 +95,11 @@ export async function generateRecommendations(
           },
         },
       },
-      buildPrompt(data.domain, issuesSummary, data.score)
+      buildPrompt(safeDomain, issuesSummary, data.score)
     );
 
     if (!result.success || !result.data) {
-      return buildFallbackSummary(data);
+      return buildFallbackSummary(data, safeDomain);
     }
 
     return {
@@ -97,7 +119,7 @@ export async function generateRecommendations(
       phasePlan: result.data.phasePlan || [],
     };
   } catch {
-    return buildFallbackSummary(data);
+    return buildFallbackSummary(data, safeDomain);
   }
 }
 
@@ -163,7 +185,12 @@ function summarizeIssues(data: AnalysisData): string {
 /**
  * Fallback wenn AI nicht verfügbar - regelbasierte Empfehlungen
  */
-function buildFallbackSummary(data: AnalysisData): AuditSummary {
+function buildFallbackSummary(data: AnalysisData, safeDomainOverride?: string): AuditSummary {
+  const displayDomain = safeDomainOverride || data.domain;
+  
+  // Security: sanitize the domain used in the summary
+  const sanitizedDisplayDomain = sanitizeDomain(displayDomain) || displayDomain;
+
   const actions: AiRecommendation[] = [];
 
   // P0 Issues direkt als Empfehlungen
@@ -215,7 +242,7 @@ function buildFallbackSummary(data: AnalysisData): AuditSummary {
   }
 
   return {
-    executiveSummary: `Die SEO-Analyse von ${data.domain} ergibt einen Gesamtscore von ${data.score.overall}/100. Es wurden ${data.technical.stats.p0Count} kritische Blocker, ${data.technical.stats.p1Count} wichtige und ${data.technical.stats.p2Count} mittlere Probleme identifiziert. Die wichtigsten Maßnahmen betreffen ${actions[0]?.category || "verschiedene Bereiche"}.`,
+    executiveSummary: `Die SEO-Analyse von ${sanitizedDisplayDomain} ergibt einen Gesamtscore von ${data.score.overall}/100. Es wurden ${data.technical.stats.p0Count} kritische Blocker, ${data.technical.stats.p1Count} wichtige und ${data.technical.stats.p2Count} mittlere Probleme identifiziert. Die wichtigsten Maßnahmen betreffen ${actions[0]?.category || "verschiedene Bereiche"}.`,
     scoreBreakdown: data.score,
     topActions: actions.slice(0, 7),
     phasePlan: [

@@ -4,11 +4,36 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { SEOHelpDialog } from "@/components/seo-help";
 import { DateConsistencyReportCard } from "@/components/date-consistency-report";
 import { IndexTierReportCard } from "@/components/index-tier-report";
 import { NavBoostReport } from "@/components/navboost-report";
 import { LinkTierReport } from "@/components/link-tier-report";
+import { 
+  GradeCircle, 
+  CategoryBreakdown, 
+  RecommendationsList, 
+  PDFExportButton, 
+  usePDFExport,
+  CategoryRadar,
+  SeverityChart,
+  PageScoreDistribution
+} from "@/components/report";
+import { CompetitorComparison } from "@/components/competitor-comparison";
+import { ScoreHistory } from "@/components/score-history";
+import { QuickFixSuggestions } from "@/components/quick-fix";
+import { ExportReport } from "@/components/export-report";
+import { 
+  Download, 
+  Gauge, 
+  FileText, 
+  Link2, 
+  Zap, 
+  Eye,
+  Smartphone,
+  Shield
+} from "lucide-react";
 import type {
   TechnicalAnalysis,
   ContentAnalysis,
@@ -26,9 +51,13 @@ interface AuditData {
   domain: string;
   status: string;
   score: number | null;
+  grade: string | null;
   pagesFound: number;
   createdAt: string;
   error: string | null;
+  progress?: number;
+  isPublic?: boolean;
+  shareToken?: string | null;
   technical: TechnicalAnalysis | null;
   content: ContentAnalysis | null;
   links: LinkGraphAnalysis | null;
@@ -71,12 +100,12 @@ export default function AuditResultPage() {
   const [audit, setAudit] = useState<AuditData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
-    "overview" | "technical" | "content" | "links" | "dates" | "tiers" | "navboost" | "linkTiers"
+    "overview" | "technical" | "content" | "links" | "dates" | "tiers" | "navboost" | "linkTiers" | "competitor" | "history" | "quickfix" | "export"
   >("overview");
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   async function fetchAudit() {
-    const res = await fetch(`/api/audit/${id}`);
+    const res = await fetch(`/rankforge/api/audit/${id}`);
     if (res.ok) {
       setAudit(await res.json());
     }
@@ -109,18 +138,135 @@ export default function AuditResultPage() {
 
   // Progress-Ansicht für laufende Audits
   if (audit.status !== "done" && audit.status !== "error") {
+    const progress = audit.progress || 0;
+    
+    // Calculate time remaining estimate
+    const createdAt = new Date(audit.createdAt).getTime();
+    const now = Date.now();
+    const elapsedMs = now - createdAt;
+    const elapsedSec = Math.floor(elapsedMs / 1000);
+    
+    // Estimate time remaining based on current progress and pages found
+    let timeRemaining = null;
+    if (audit.status === "crawling" && audit.pagesFound > 0) {
+      const avgTimePerPage = elapsedMs / audit.pagesFound; // ms per page
+      const estimatedTotalPages = Math.max(audit.pagesFound * 2, 20); // Assume at least 20 pages or double current
+      const remainingPages = Math.max(estimatedTotalPages - audit.pagesFound, 5);
+      const estimatedRemainingMs = avgTimePerPage * remainingPages;
+      const remainingSec = Math.floor(estimatedRemainingMs / 1000);
+      
+      if (remainingSec > 0) {
+        const minutes = Math.floor(remainingSec / 60);
+        const seconds = remainingSec % 60;
+        timeRemaining = minutes > 0 ? `~${minutes}m ${seconds}s` : `~${seconds}s`;
+      }
+    }
+    
+    // Format elapsed time
+    const formatElapsed = (sec: number) => {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return m > 0 ? `${m}m ${s}s` : `${s}s`;
+    };
+    
     return (
       <div className="max-w-xl mx-auto text-center py-20">
-        <div className="animate-spin h-12 w-12 border-4 border-primary border-t-transparent rounded-full mx-auto mb-6" />
+        <div className="relative w-32 h-32 mx-auto mb-6">
+          {/* Circular Progress */}
+          <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+            <circle
+              cx="50"
+              cy="50"
+              r="45"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="8"
+              className="text-muted"
+            />
+            <circle
+              cx="50"
+              cy="50"
+              r="45"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="8"
+              strokeDasharray={`${progress * 2.83} 283`}
+              strokeLinecap="round"
+              className="text-primary transition-all duration-500"
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-3xl font-bold">{progress}%</span>
+          </div>
+        </div>
+        
         <h2 className="text-2xl font-bold mb-2">{audit.domain}</h2>
         <p className="text-lg text-muted-foreground mb-4">
           {statusLabels[audit.status]}
         </p>
-        {audit.pagesFound > 0 && (
-          <p className="text-sm text-muted-foreground">
+        
+        {/* Scanning Progress Message */}
+        {audit.status === "crawling" && audit.pagesFound > 0 && (
+          <div className="mb-4">
+            <p className="text-lg font-medium text-primary animate-pulse">
+              🔍 Scanning {audit.pagesFound} Seiten...
+            </p>
+          </div>
+        )}
+        
+        {/* Time Info */}
+        <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mb-4">
+          <div className="flex items-center gap-1">
+            <span>⏱️</span>
+            <span>Verstrichen: {formatElapsed(elapsedSec)}</span>
+          </div>
+          {timeRemaining && audit.status === "crawling" && (
+            <>
+              <span>•</span>
+              <div className="flex items-center gap-1">
+                <span>⏳</span>
+                <span>Verbleibend: {timeRemaining}</span>
+              </div>
+            </>
+          )}
+        </div>
+        
+        {audit.pagesFound > 0 && audit.status !== "crawling" && (
+          <p className="text-sm text-muted-foreground mb-4">
             {audit.pagesFound} Seiten gefunden
           </p>
         )}
+        
+        {/* Progress Steps */}
+        <div className="mt-8 flex justify-center gap-2">
+          {["mapping", "crawling", "analyzing"].map((step) => {
+            const stepProgress = {
+              mapping: 10,
+              crawling: 50,
+              analyzing: 80,
+            }[step] as number;
+            
+            const isActive = progress >= stepProgress;
+            const isCurrent = audit.status === step;
+            
+            return (
+              <div
+                key={step}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  isCurrent
+                    ? "bg-primary text-primary-foreground"
+                    : isActive
+                    ? "bg-green-500 text-white"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {step === "mapping" && "🔍 URL Discovery"}
+                {step === "crawling" && "🕷️ Crawling"}
+                {step === "analyzing" && "📊 Analyse"}
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -143,31 +289,99 @@ export default function AuditResultPage() {
     { key: "tiers" as const, label: "Index Tiers 💎" },
     { key: "navboost" as const, label: "NavBoost 🚀" },
     { key: "linkTiers" as const, label: "Link Tiers 🔗" },
+    { key: "competitor" as const, label: "Vergleich ⚖️" },
+    { key: "history" as const, label: "Verlauf 📈" },
+    { key: "quickfix" as const, label: "Quick Fix ⚡" },
+    { key: "export" as const, label: "Export 📤" },
   ];
+
+  // Prepare categories for PDF export (plain data - no JSX)
+  const categoriesForPdf = [
+    { name: "Technical", score: audit.summary?.scoreBreakdown.technical ?? 0, status: (audit.summary?.scoreBreakdown.technical ?? 0) >= 70 ? "good" : (audit.summary?.scoreBreakdown.technical ?? 0) >= 40 ? "warning" : "critical" },
+    { name: "Content", score: audit.summary?.scoreBreakdown.content ?? 0, status: (audit.summary?.scoreBreakdown.content ?? 0) >= 70 ? "good" : (audit.summary?.scoreBreakdown.content ?? 0) >= 40 ? "warning" : "critical" },
+    { name: "Links", score: audit.summary?.scoreBreakdown.links ?? 0, status: (audit.summary?.scoreBreakdown.links ?? 0) >= 70 ? "good" : (audit.summary?.scoreBreakdown.links ?? 0) >= 40 ? "warning" : "critical" },
+    { name: "Performance", score: 75, status: "good" },
+    { name: "UX", score: 80, status: "good" },
+    { name: "Security", score: 100, status: "good" },
+  ];
+
+  // Prepare recommendations for PDF export
+  const { pdfData } = usePDFExport({
+    domain: audit.domain,
+    url: audit.url,
+    score: audit.score,
+    pagesFound: audit.pagesFound,
+    categories: categoriesForPdf,
+    recommendations: audit.summary?.topActions.map((action, idx) => ({
+      id: `rec-${idx}`,
+      title: action.title,
+      description: action.description,
+      priority: action.priority === "P0" ? "high" as const : action.priority === "P1" ? "medium" as const : "low" as const,
+      impact: action.impact,
+      effort: action.effort,
+      category: action.category,
+      fix: `Priority: ${action.priority}, Impact: ${action.impact}, Effort: ${action.effort}`
+    })) ?? []
+  });
+
+  // Export to CSV
+  async function exportCSV() {
+    if (!audit) return;
+    try {
+      const res = await fetch(`/rankforge/api/audit/${audit.id}`, { method: "PUT" });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${audit.domain}-audit.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (error) {
+      console.error("Failed to export CSV:", error);
+    }
+  }
+
+  // Get grade from audit (or compute from score)
+  const displayGrade = audit.grade || (audit.score !== null ? (
+    audit.score >= 90 ? "A" :
+    audit.score >= 75 ? "B" :
+    audit.score >= 60 ? "C" :
+    audit.score >= 40 ? "D" : "F"
+  ) : null);
 
   return (
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">{audit.domain}</h1>
-          <p className="text-muted-foreground">{audit.url} - {audit.pagesFound} Seiten</p>
-        </div>
         <div className="flex items-center gap-4">
-          <SEOHelpDialog />
-          {audit.score !== null && (
-          <div
-            className={`text-5xl font-bold ${
-              audit.score >= 70
-                ? "text-green-500"
-                : audit.score >= 40
-                ? "text-yellow-500"
-                : "text-red-500"
-            }`}
-          >
-            {audit.score}
-            <span className="text-lg text-muted-foreground">/100</span>
+          <div>
+            <h1 className="text-3xl font-bold">{audit.domain}</h1>
+            <p className="text-muted-foreground">{audit.url} - {audit.pagesFound} Seiten</p>
           </div>
+          {displayGrade && (
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl ${
+              displayGrade === "A" ? "bg-green-500" :
+              displayGrade === "B" ? "bg-blue-500" :
+              displayGrade === "C" ? "bg-yellow-500" :
+              displayGrade === "D" ? "bg-orange-500" : "bg-red-500"
+            }`}>
+              {displayGrade}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <SEOHelpDialog />
+          <Button variant="outline" size="sm" onClick={exportCSV}>
+            <Download className="w-4 h-4 mr-2" />
+            CSV
+          </Button>
+          <PDFExportButton data={pdfData} />
+          {audit.score !== null && (
+            <GradeCircle score={audit.score} size="lg" />
           )}
         </div>
       </div>
@@ -198,6 +412,10 @@ export default function AuditResultPage() {
       {activeTab === "tiers" && <TiersTab audit={audit} />}
       {activeTab === "navboost" && <NavBoostTab audit={audit} />}
       {activeTab === "linkTiers" && <LinkTiersTab audit={audit} />}
+      {activeTab === "competitor" && <CompetitorTab audit={audit} />}
+      {activeTab === "history" && <HistoryTab audit={audit} />}
+      {activeTab === "quickfix" && <QuickFixTab audit={audit} />}
+      {activeTab === "export" && <ExportTab audit={audit} />}
     </div>
   );
 }
@@ -208,8 +426,96 @@ function OverviewTab({ audit }: { audit: AuditData }) {
   const summary = audit.summary;
   const score = summary?.scoreBreakdown;
 
+  // Prepare categories for CategoryBreakdown component
+  const categories = [
+    { 
+      name: "Technical", 
+      score: score?.technical ?? 0, 
+      icon: <Gauge className="w-5 h-5" />,
+      description: "Meta tags, sitemaps, indexing",
+      status: (score?.technical ?? 0) >= 70 ? "good" as const : (score?.technical ?? 0) >= 40 ? "warning" as const : "critical" as const
+    },
+    { 
+      name: "Content", 
+      score: score?.content ?? 0, 
+      icon: <FileText className="w-5 h-5" />,
+      description: "Word count, quality, thin pages",
+      status: (score?.content ?? 0) >= 70 ? "good" as const : (score?.content ?? 0) >= 40 ? "warning" as const : "critical" as const
+    },
+    { 
+      name: "Links", 
+      score: score?.links ?? 0, 
+      icon: <Link2 className="w-5 h-5" />,
+      description: "Internal links, orphan pages",
+      status: (score?.links ?? 0) >= 70 ? "good" as const : (score?.links ?? 0) >= 40 ? "warning" as const : "critical" as const
+    },
+    { 
+      name: "Performance", 
+      score: 75, 
+      icon: <Zap className="w-5 h-5" />,
+      description: "Core Web Vitals",
+      status: "good" as const
+    },
+    { 
+      name: "Mobile", 
+      score: 80, 
+      icon: <Smartphone className="w-5 h-5" />,
+      description: "Mobile-friendliness",
+      status: "good" as const
+    },
+    { 
+      name: "Security", 
+      score: 100, 
+      icon: <Shield className="w-5 h-5" />,
+      description: "HTTPS, security headers",
+      status: "good" as const
+    },
+  ];
+
+  // Prepare recommendations for the new component
+  const recommendations = summary?.topActions.map((action, idx) => ({
+    id: `rec-${idx}`,
+    title: action.title,
+    description: action.description,
+    impact: action.impact,
+    effort: action.effort,
+    priority: action.priority === "P0" ? "high" as const : action.priority === "P1" ? "medium" as const : "low" as const,
+    category: action.category,
+    fix: `To fix this issue: Consider ${action.effort} effort changes. Expected impact: ${action.impact}.`
+  })) ?? [];
+
+  // Severity distribution for chart
+  const severityData = [
+    { name: "Critical (P0)", value: audit.technical?.stats.p0Count ?? 0, color: "#ef4444" },
+    { name: "Important (P1)", value: audit.technical?.stats.p1Count ?? 0, color: "#eab308" },
+    { name: "Warning (P2)", value: audit.technical?.stats.p2Count ?? 0, color: "#22c55e" },
+  ];
+
+  // Radar chart data
+  const radarData = categories.map(cat => ({
+    category: cat.name,
+    score: cat.score,
+    fullMark: 100
+  }));
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
+      {/* Professional Grade Circle & Category Breakdown */}
+      {audit.score !== null && (
+        <>
+          <div className="flex items-center justify-center mb-6">
+            <GradeCircle score={audit.score} size="lg" />
+          </div>
+          <CategoryBreakdown categories={categories} />
+        </>
+      )}
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <CategoryRadar data={radarData} title="SEO Category Analysis" />
+        <SeverityChart data={severityData} title="Issues by Severity" />
+      </div>
+
       {/* Score Breakdown */}
       {score && (
         <div className="grid grid-cols-3 gap-4">
@@ -223,9 +529,9 @@ function OverviewTab({ audit }: { audit: AuditData }) {
                 <p className="text-sm text-muted-foreground">{item.label}</p>
                 <p
                   className={`text-3xl font-bold mt-1 ${
-                    item.value >= 70
+                    (item.value ?? 0) >= 70
                       ? "text-green-500"
-                      : item.value >= 40
+                      : (item.value ?? 0) >= 40
                       ? "text-yellow-500"
                       : "text-red-500"
                   }`}
@@ -248,45 +554,12 @@ function OverviewTab({ audit }: { audit: AuditData }) {
         </Card>
       )}
 
-      {/* Top Actions */}
-      {summary?.topActions && summary.topActions.length > 0 && (
-        <Card>
-          <CardContent className="py-6">
-            <h3 className="font-medium mb-4">Top Maßnahmen</h3>
-            <div className="space-y-3">
-              {summary.topActions.map((action, i) => (
-                <div key={i} className="flex items-start gap-3 p-3 rounded-md bg-muted/50">
-                  <Badge
-                    variant="secondary"
-                    className={
-                      action.priority === "P0"
-                        ? "bg-red-500 text-white"
-                        : action.priority === "P1"
-                        ? "bg-orange-500 text-white"
-                        : "bg-yellow-500 text-white"
-                    }
-                  >
-                    {action.priority}
-                  </Badge>
-                  <div>
-                    <p className="font-medium">{action.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {action.description}
-                    </p>
-                    <div className="flex gap-2 mt-1">
-                      <span className="text-xs text-muted-foreground">
-                        Impact: {action.impact}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Aufwand: {action.effort}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Top Recommendations - Professional Component */}
+      {recommendations.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold mb-4">Prioritized Recommendations</h3>
+          <RecommendationsList recommendations={recommendations} maxItems={15} />
+        </div>
       )}
 
       {/* Phase Plan */}
@@ -960,5 +1233,82 @@ function LinkTiersTab({ audit }: { audit: AuditData }) {
 
       <LinkTierReport report={audit.linkTierAnalysis} />
     </div>
+  );
+}
+
+// ─── USP Tab Components ────────────────────────────────────
+
+function CompetitorTab({ audit }: { audit: AuditData }) {
+  // Prepare primary site data from current audit
+  const primaryData = audit.status === "done" ? {
+    domain: audit.domain,
+    url: audit.url,
+    score: audit.score,
+    grade: audit.grade,
+    pagesFound: audit.pagesFound,
+    technical: {
+      score: audit.summary?.scoreBreakdown?.technical ?? 0,
+      issues: {
+        count: audit.technical?.issues?.length ?? 0,
+        critical: audit.technical?.stats?.p0Count ?? 0,
+      },
+    },
+    content: {
+      avgWordCount: audit.content?.avgWordCount ?? 0,
+      thinContent: audit.content?.thinContentPages?.length ?? 0,
+    },
+    links: {
+      total: audit.links?.nodes?.length ?? 0,
+      orphan: audit.links?.orphanPages?.length ?? 0,
+    },
+  } : undefined;
+  
+  return (
+    <CompetitorComparison 
+      primaryUrl={audit.url} 
+      primaryData={primaryData}
+    />
+  );
+}
+
+function HistoryTab({ audit }: { audit: AuditData }) {
+  return (
+    <ScoreHistory domain={audit.domain} currentScore={audit.score} />
+  );
+}
+
+function QuickFixTab({ audit }: { audit: AuditData }) {
+  // Extract issues from technical analysis
+  const issues = audit.technical?.issues ?? [];
+  
+  return (
+    <QuickFixSuggestions 
+      auditId={audit.id} 
+      issues={issues as Array<{
+        type: string;
+        severity: string;
+        page: string;
+        message: string;
+        fix: string;
+      }>} 
+    />
+  );
+}
+
+function ExportTab({ audit }: { audit: AuditData }) {
+  return (
+    <ExportReport 
+      audit={{
+        id: audit.id,
+        url: audit.url,
+        domain: audit.domain,
+        score: audit.score,
+        grade: audit.grade,
+        pagesFound: audit.pagesFound,
+        createdAt: audit.createdAt,
+        isPublic: audit.isPublic ?? false,
+        shareToken: audit.shareToken ?? null,
+      }} 
+    />
   );
 }

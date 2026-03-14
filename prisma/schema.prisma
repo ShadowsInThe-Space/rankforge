@@ -14,6 +14,7 @@ model Audit {
   domain     String
   status     String   @default("pending") // pending, mapping, crawling, analyzing, done, error
   score      Int?     // 0-100
+  grade      String?  // A, B, C, D, F
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -39,6 +40,12 @@ model Audit {
   navboostAnalysis Json? // NavBoost detailed analysis (Module A)
   linkTierScore    Int?  // Link Tier overall score (Module E)
   linkTierAnalysis Json? // Link Tier detailed analysis (Module E)
+  
+  // Advanced SEO Analysis (SEOptimer-style checks)
+  advancedSeo Json? // Advanced SEO findings (title keyword, meta, performance, mobile, schema, social)
+
+  // Core Web Vitals (Google PageSpeed Insights)
+  coreWebVitals Json? // Core Web Vitals metrics (LCP, FID, CLS)
 
   // Error tracking
   error String?
@@ -86,5 +93,45 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  audits Audit[]
+  audits         Audit[]
+  auditHistories AuditHistory[]
+}
+
+// ─── Audit History: Snapshots of completed audits ────────────
+
+model AuditHistory {
+  id            String   @id @default(cuid())
+  auditId       String   // Reference to original audit
+  domain        String
+  
+  // Score & Grade at time of snapshot
+  score         Int
+  grade         String
+  
+  // Snapshot of key data (JSON) for comparison
+  technical     Json?
+  content       Json?
+  links         Json?
+  summary       Json?
+  advancedSeo   Json?
+  
+  // Enterprise modules snapshot
+  dateConsistency Json?
+  indexTier     Json?
+  navboostScore Int?
+  navboostAnalysis Json?
+  linkTierScore Int?
+  linkTierAnalysis Json?
+  
+  // Meta
+  createdAt     DateTime @default(now())
+  pagesFound    Int      @default(0)
+  
+  // User relation
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([domain])
+  @@index([userId])
+  @@index([createdAt])
 }

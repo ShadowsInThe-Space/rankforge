@@ -110,9 +110,7 @@ export function AuditDashboard({ audit }: AuditDashboardProps) {
               {score ? (
                 <ScoreCard
                   overall={score.overall}
-                  technical={score.technical}
-                  content={score.content}
-                  links={score.links}
+                  breakdown={score}
                 />
               ) : (
                 <Card>
