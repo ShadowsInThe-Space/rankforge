@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getAuthUser, requireAuth } from "@/lib/auth";
+import { rateLimitMiddleware } from "@/lib/security/rate-limit";
 import type { SeoIssue, TechnicalAnalysis } from "@/types/audit";
 
 interface AuditHistoryWithTech {
@@ -25,6 +27,19 @@ interface AuditHistoryWithTech {
 
 // GET /api/audit/compare?older=<id>&newer=<id>
 export async function GET(request: NextRequest) {
+  // Check rate limit
+  const rateLimitResponse = rateLimitMiddleware(request);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Require authentication
+  const authCheck = requireAuth(request);
+  if (authCheck) return authCheck;
+
+  const user = getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const olderId = searchParams.get("older");
   const newerId = searchParams.get("newer");
@@ -51,6 +66,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: "Ein oder beide Audits nicht gefunden" },
         { status: 404 }
+      );
+    }
+
+    // Verify user owns both audits via the audit relation
+    const [olderAuditMain, newerAuditMain] = await Promise.all([
+      prisma.audit.findUnique({
+        where: { id: olderAudit.auditId },
+        select: { userId: true },
+      }),
+      prisma.audit.findUnique({
+        where: { id: newerAudit.auditId },
+        select: { userId: true },
+      }),
+    ]);
+
+    if (olderAuditMain?.userId !== user.userId || newerAuditMain?.userId !== user.userId) {
+      return NextResponse.json(
+        { error: "Zugriff verweigert" },
+        { status: 403 }
       );
     }
 

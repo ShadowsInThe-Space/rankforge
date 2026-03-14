@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { firecrawl } from "@/lib/firecrawl";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, requireAuth } from "@/lib/auth";
 import type { HeadingStructure } from "@/types/audit";
 import { calculateScore, scoreToGrade } from "@/lib/analyzers/scoring";
 import { fetchCoreWebVitals } from "@/lib/analyzers/pagespeed";
+import { rateLimitMiddleware } from "@/lib/security/rate-limit";
 
 // ─── Timeout Constants ──────────────────────────────────────
 const CRAWL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes max for 200 pages
@@ -13,15 +14,47 @@ const PAGE_CAPTURE_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes per page for headles
 // Global cancellation map
 const cancelledAudits = new Set<string>();
 
+// Validate URL to prevent SSRF
+function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+    // Only allow http and https
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return false;
+    }
+    // Block private/internal IPs
+    const hostname = parsed.hostname;
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "0.0.0.0" ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("10.") ||
+      hostname.startsWith("172.16.") ||
+      hostname.endsWith(".local") ||
+      /^\d+\.\d+\.\d+\.\d+$/.test(hostname) && hostname.startsWith("169.254.")
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
-  // Auth disabled for testing - use real user ID
-  const user = { userId: "cmmhnqbj80000gmax06hwu6on" };
-  /*
+  // Check rate limit
+  const rateLimitResponse = rateLimitMiddleware(request);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Require authentication
+  const authCheck = requireAuth(request);
+  if (authCheck) return authCheck;
+
   const user = getAuthUser(request);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  */
 
   const body = await request.json();
   const { url, keywords = [] } = body as {
@@ -31,6 +64,11 @@ export async function POST(request: NextRequest) {
 
   if (!url) {
     return NextResponse.json({ error: "URL ist erforderlich" }, { status: 400 });
+  }
+
+  // Validate URL to prevent SSRF
+  if (!isValidUrl(url)) {
+    return NextResponse.json({ error: "Ungültige oder nicht erlaubte URL" }, { status: 400 });
   }
 
   // Domain extrahieren
@@ -69,14 +107,18 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  // Auth disabled for testing - use real user ID
-  const user = { userId: "cmmhnqbj80000gmax06hwu6on" };
-  /*
+  // Check rate limit
+  const rateLimitResponse = rateLimitMiddleware(request);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Require authentication
+  const authCheck = requireAuth(request);
+  if (authCheck) return authCheck;
+
   const user = getAuthUser(request);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  */
 
   // Return only user's audits
   const audits = await prisma.audit.findMany({
@@ -128,11 +170,34 @@ export async function GET(request: NextRequest) {
 
 // ─── Cancel Audit Endpoint ─────────────────────────────────
 export async function DELETE(request: NextRequest) {
+  // Check rate limit
+  const rateLimitResponse = rateLimitMiddleware(request);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Require authentication
+  const authCheck = requireAuth(request);
+  if (authCheck) return authCheck;
+
+  const user = getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const auditId = searchParams.get("id");
 
   if (!auditId) {
     return NextResponse.json({ error: "Audit ID erforderlich" }, { status: 400 });
+  }
+
+  // Verify audit belongs to user before cancelling
+  const audit = await prisma.audit.findUnique({
+    where: { id: auditId },
+    select: { userId: true },
+  });
+
+  if (!audit || audit.userId !== user.userId) {
+    return NextResponse.json({ error: "Audit nicht gefunden" }, { status: 404 });
   }
 
   // Mark as cancelled

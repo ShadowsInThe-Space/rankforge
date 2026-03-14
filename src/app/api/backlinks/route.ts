@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getAuthUser, requireAuth } from "@/lib/auth";
 import { analyzeExternalBacklinks, scoreExternalBacklinks } from "@/lib/analyzers/links";
 import { calculateScore, scoreToGrade } from "@/lib/analyzers/scoring";
+import { rateLimitMiddleware } from "@/lib/security/rate-limit";
 
 /**
  * Backlink Analysis API
@@ -16,6 +18,19 @@ import { calculateScore, scoreToGrade } from "@/lib/analyzers/scoring";
  */
 
 export async function POST(request: NextRequest) {
+  // Check rate limit
+  const rateLimitResponse = rateLimitMiddleware(request);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Require authentication
+  const authCheck = requireAuth(request);
+  if (authCheck) return authCheck;
+
+  const user = getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { auditId } = body as { auditId: string };
@@ -27,7 +42,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get audit with pages
+    // Get audit with pages and verify ownership
     const audit = await prisma.audit.findUnique({
       where: { id: auditId },
       include: {
@@ -45,6 +60,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Audit nicht gefunden" },
         { status: 404 }
+      );
+    }
+
+    // Verify user owns the audit
+    if (audit.userId !== user.userId) {
+      return NextResponse.json(
+        { error: "Zugriff verweigert" },
+        { status: 403 }
       );
     }
 
@@ -116,6 +139,19 @@ export async function POST(request: NextRequest) {
 
 // GET - Get backlink analysis for a specific audit
 export async function GET(request: NextRequest) {
+  // Check rate limit
+  const rateLimitResponse = rateLimitMiddleware(request);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Require authentication
+  const authCheck = requireAuth(request);
+  if (authCheck) return authCheck;
+
+  const user = getAuthUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const auditId = searchParams.get("auditId");
 
@@ -130,6 +166,7 @@ export async function GET(request: NextRequest) {
     const audit = await prisma.audit.findUnique({
       where: { id: auditId },
       select: {
+        userId: true,
         id: true,
         domain: true,
         links: true, // Contains internal link analysis
@@ -140,6 +177,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: "Audit nicht gefunden" },
         { status: 404 }
+      );
+    }
+
+    // Verify user owns the audit
+    if (audit.userId !== user.userId) {
+      return NextResponse.json(
+        { error: "Zugriff verweigert" },
+        { status: 403 }
       );
     }
 

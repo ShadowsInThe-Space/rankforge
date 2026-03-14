@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getAuthUser } from "@/lib/auth";
+import { getAuthUser, requireAuth } from "@/lib/auth";
+import { rateLimitMiddleware } from "@/lib/security/rate-limit";
 
 // ─── DELETE Audit ─────────────────────────────────────────
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Auth disabled for testing - use real user ID
-  const user = { userId: "cmmhnqbj80000gmax06hwu6on" };
-  /*
+  // Check rate limit
+  const rateLimitResponse = rateLimitMiddleware(request);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Require authentication
+  const authCheck = requireAuth(request);
+  if (authCheck) return authCheck;
+
   const user = getAuthUser(request);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  */
 
   const { id } = await params;
 
@@ -40,14 +45,18 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Auth disabled for testing - use real user ID
-  const user = { userId: "cmmhnqbj80000gmax06hwu6on" };
-  /*
+  // Check rate limit
+  const rateLimitResponse = rateLimitMiddleware(request);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Require authentication
+  const authCheck = requireAuth(request);
+  if (authCheck) return authCheck;
+
   const user = getAuthUser(request);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  */
 
   const { id } = await params;
 
@@ -105,14 +114,18 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Auth disabled for testing - use real user ID
-  const user = { userId: "cmmhnqbj80000gmax06hwu6on" };
-  /*
+  // Check rate limit
+  const rateLimitResponse = rateLimitMiddleware(request);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Require authentication
+  const authCheck = requireAuth(request);
+  if (authCheck) return authCheck;
+
   const user = getAuthUser(request);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  */
 
   const { id } = await params;
 
