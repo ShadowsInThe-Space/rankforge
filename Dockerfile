@@ -41,9 +41,11 @@ RUN mkdir -p .next/cache && chown node:node .next/cache || true
 
 USER nextjs
 
+WORKDIR /app
+
 EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "Development/rankforge/server.js"]
+CMD ["node", "server.js"]
