@@ -10,10 +10,12 @@ services:
       - JWT_SECRET=***REMOVED***
       - NEXTAUTH_SECRET=rankforge-super-secret-nextauth-2024-change-in-production
       - NEXTAUTH_URL=https://rankforge.shadowsinthe.space
-      - FIRECRAWL_API_URL=http://localhost:3002
+      - FIRECRAWL_API_URL=http://host.docker.internal:3002
       - NODE_ENV=production
       - PORT=3000
       - HOST=0.0.0.0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - agency-app_app-network
       - supabase_default
