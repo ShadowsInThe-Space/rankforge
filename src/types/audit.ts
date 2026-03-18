@@ -1,6 +1,6 @@
 // ─── SEO Issue Types ───────────────────────────────────────
 
-export type IssueSeverity = "P0" | "P1" | "P2";
+export type IssueSeverity = "P0" | "P1" | "P2" | "P3";
 
 export type IssueCategory =
   | "title"
@@ -78,6 +78,7 @@ export interface TechnicalAnalysis {
     p0Count: number;
     p1Count: number;
     p2Count: number;
+    p3Count: number;
   };
 }
 
@@ -224,6 +225,7 @@ export interface ScoreBreakdown {
   contentQuality?: number;
   userSignals?: number;
   backlinks?: number;
+  geo?: number; // AI Search / GEO score
   // Legacy support (v1.0)
   content?: number;
   links?: number;

@@ -668,6 +668,18 @@ async function runAuditPipeline(
     primaryKeyword
   );
 
+  // GEO / AI Search Optimization Analysis (Generative Engine Optimization)
+  const { analyzeGeo } = await import("@/lib/analyzers/geo-signals");
+  const geoResult = analyzeGeo(
+    pages.map((p) => ({
+      url: p.url,
+      html: p.html,
+      wordCount: p.wordCount,
+      headings: p.headings as HeadingStructure | null,
+      links: p.links as { internal: string[]; external: string[] } | null,
+    }))
+  );
+
   const linkResult = analyzeLinkGraph(
     pages.map((p) => ({
       url: p.url,
@@ -706,7 +718,8 @@ async function runAuditPipeline(
     contentResult, 
     advancedSeoResult, 
     externalBacklinksResult,
-    coreWebVitalsResult ? [coreWebVitalsResult] : undefined
+    coreWebVitalsResult ? [coreWebVitalsResult] : undefined,
+    geoResult
   );
 
   // Phase 6: AI Recommendations
@@ -759,6 +772,7 @@ async function runAuditPipeline(
       linkTierScore: linkTierReport.overallScore,
       linkTierAnalysis: safeSerialize(linkTierReport),
       advancedSeo: safeSerialize(advancedSeoResult),
+      geo: safeSerialize(geoResult),
       coreWebVitals: safeSerialize(coreWebVitalsResult),
     },
   });
@@ -794,6 +808,7 @@ async function runAuditPipeline(
     links: linkResult,
     summary,
     advancedSeo: advancedSeoResult,
+    geo: geoResult,
     dateConsistency: dateAnalysisFiltered,
     indexTier: tierAnalysisFiltered,
     navboostScore: navboostReport.overallScore,
@@ -866,6 +881,7 @@ interface AuditSnapshotData {
   links: ReturnType<typeof import("@/lib/analyzers/links").analyzeLinkGraph>;
   summary: import("@/types/audit").AuditSummary;
   advancedSeo: ReturnType<typeof import("@/lib/analyzers/advanced-seo").analyzeAdvancedSeo>;
+  geo: ReturnType<typeof import("@/lib/analyzers/geo-signals").analyzeGeo>;
   dateConsistency: Array<{ url: string; report: unknown }>;
   indexTier: Array<{ url: string; prediction: unknown }>;
   navboostScore: number;
@@ -907,6 +923,7 @@ async function saveAuditSnapshot(
         links: safeSerialize(data.links),
         summary: safeSerialize(data.summary),
         advancedSeo: safeSerialize(data.advancedSeo),
+        geo: safeSerialize(data.geo),
         dateConsistency: safeSerialize(data.dateConsistency),
         indexTier: safeSerialize(data.indexTier),
         navboostScore: data.navboostScore,
@@ -984,6 +1001,18 @@ async function runHomepageAnalysis(
     ""
   );
 
+  // GEO / AI Search Optimization (Homepage mode)
+  const { analyzeGeo: geoAnalyzer } = await import("@/lib/analyzers/geo-signals");
+  const geoResult = geoAnalyzer(
+    pages.map((p) => ({
+      url: p.url,
+      html: p.html,
+      wordCount: p.wordCount,
+      headings: p.headings as HeadingStructure | null,
+      links: p.links as { internal: string[]; external: string[] } | null,
+    }))
+  );
+
   const linkResult = analyzeLinkGraph(
     pages.map((p) => ({
       url: p.url,
@@ -1021,7 +1050,8 @@ async function runHomepageAnalysis(
     contentResult, 
     advancedSeoResult, 
     externalBacklinksResult,
-    coreWebVitalsResult ? [coreWebVitalsResult] : undefined
+    coreWebVitalsResult ? [coreWebVitalsResult] : undefined,
+    geoResult
   );
 
   // Generate summary
@@ -1068,6 +1098,7 @@ async function runHomepageAnalysis(
       links: safeSerialize(linkResult),
       summary: safeSerialize(summary),
       advancedSeo: safeSerialize(advancedSeoResult),
+      geo: safeSerialize(geoResult),
       coreWebVitals: safeSerialize(coreWebVitalsResult),
     },
   });
@@ -1094,6 +1125,7 @@ async function runHomepageAnalysis(
     links: linkResult,
     summary,
     advancedSeo: advancedSeoResult,
+    geo: geoResult,
     dateConsistency: [],
     indexTier: [],
     navboostScore: 0,

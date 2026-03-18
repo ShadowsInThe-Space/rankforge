@@ -772,6 +772,7 @@ export function analyzeTechnicalSeo(
       p0Count: allIssues.filter((i) => i.severity === "P0").length,
       p1Count: allIssues.filter((i) => i.severity === "P1").length,
       p2Count: allIssues.filter((i) => i.severity === "P2").length,
+      p3Count: allIssues.filter((i) => i.severity === "P3").length,
     },
   };
 }

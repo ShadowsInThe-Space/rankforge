@@ -81,6 +81,9 @@ model Audit {
   // Advanced SEO Analysis (SEOptimer-style checks)
   advancedSeo Json? // Advanced SEO findings (title keyword, meta, performance, mobile, schema, social)
 
+  // GEO / AI Search Optimization
+  geo     Json? // GEO signals (FAQ, E-E-A-T, freshness, conversational, topic authority)
+
   // Core Web Vitals (Google PageSpeed Insights)
   coreWebVitals Json? // Core Web Vitals metrics (LCP, FID, CLS)
 
@@ -141,6 +144,7 @@ model AuditHistory {
   links         Json?
   summary       Json?
   advancedSeo   Json?
+  geo           Json? // GEO signals snapshot
   
   // Enterprise modules snapshot
   dateConsistency Json?

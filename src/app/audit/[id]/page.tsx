@@ -592,7 +592,7 @@ function OverviewTab({ audit }: { audit: AuditData }) {
 
 function TechnicalTab({ audit }: { audit: AuditData }) {
   const technical = audit.technical;
-  const [filter, setFilter] = useState<"all" | "P0" | "P1" | "P2">("all");
+  const [filter, setFilter] = useState<"all" | "P0" | "P1" | "P2" | "P3">("all");
   
   if (!technical) return <p className="text-muted-foreground">Keine Daten</p>;
 
@@ -605,6 +605,7 @@ function TechnicalTab({ audit }: { audit: AuditData }) {
     P0: "bg-red-500 text-white",
     P1: "bg-orange-500 text-white",
     P2: "bg-yellow-500 text-white",
+    P3: "bg-blue-500 text-white",
   };
 
   return (
@@ -614,7 +615,7 @@ function TechnicalTab({ audit }: { audit: AuditData }) {
           {technical.issues.length} Issues gefunden
         </p>
         <div className="flex gap-1">
-          {(["all", "P0", "P1", "P2"] as const).map((f) => (
+          {(["all", "P0", "P1", "P2", "P3"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}

@@ -23,6 +23,7 @@ import type {
   ExternalBacklinkAnalysis,
   CoreWebVitalsResult,
 } from "@/types/audit";
+import type { GeoAnalysis } from "./geo-signals";
 import type { AdvancedSeoAnalysis } from "./advanced-seo";
 import { scoreExternalBacklinks } from "./links";
 
@@ -35,11 +36,12 @@ import { scoreExternalBacklinks } from "./links";
 // Backlinks/Authority: 15% - External validation
 
 export const WEIGHTS = {
-  technical: 0.25,
-  onPage: 0.25,
-  contentQuality: 0.20,
-  userSignals: 0.15,
-  backlinks: 0.15,
+  technical: 0.22,
+  onPage: 0.20,
+  contentQuality: 0.18,
+  userSignals: 0.12,
+  backlinks: 0.10,
+  geo: 0.18, // AI Search / GEO weight
 } as const;
 
 // ─── Issue Penalty Configuration ─────────────────────────
@@ -48,6 +50,7 @@ const ISSUE_PENALTIES: Record<string, number> = {
   P0: 12,   // Critical - calibrated to match industry standards (was 8)
   P1: 6,    // Major - calibrated to match industry standards (was 4)
   P2: 3,    // Minor - calibrated to match industry standards (was 2)
+  P3: 1,    // Trivial - informational (AI search optimization hints)
 };
 
 // ─── Grade Helpers ────────────────────────────────────────
@@ -304,6 +307,7 @@ export function calculateScore(
   advancedSeo?: AdvancedSeoAnalysis,
   externalBacklinks?: ExternalBacklinkAnalysis,
   coreWebVitals?: CoreWebVitalsResult[],
+  geoAnalysis?: GeoAnalysis,
 ): ScoreBreakdown {
   // Calculate component scores
   const technicalScore = scoreTechnical(technical, coreWebVitals);
@@ -337,6 +341,9 @@ export function calculateScore(
     }
   }
   
+  // GEO Score (AI Search Optimization)
+  const geoScore = geoAnalysis?.geoScore ?? 50;
+  
   // Apply weights and calculate overall
   // If external backlinks available, use them instead of internal-based backlinks score
   const finalBacklinksScore = externalBacklinks ? externalBacklinkScore : backlinksScore;
@@ -347,6 +354,7 @@ export function calculateScore(
     contentQualityScore * WEIGHTS.contentQuality +
     userSignalsScore * WEIGHTS.userSignals +
     finalBacklinksScore * WEIGHTS.backlinks +
+    geoScore * WEIGHTS.geo +
     advancedBonus
   );
   
@@ -364,6 +372,7 @@ export function calculateScore(
     contentQuality: contentQualityScore,
     userSignals: userSignalsScore,
     backlinks: finalBacklinksScore,
+    geo: geoScore,
     // Legacy fields for backward compatibility
     content: legacyContentScore,
     links: legacyLinksScore,

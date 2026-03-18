@@ -13,6 +13,7 @@ const severityConfig: Record<IssueSeverity, { label: string; className: string }
   P0: { label: "Kritisch", className: "bg-red-500 text-white hover:bg-red-500" },
   P1: { label: "Wichtig", className: "bg-orange-500 text-white hover:bg-orange-500" },
   P2: { label: "Hinweis", className: "bg-yellow-500 text-white hover:bg-yellow-500" },
+  P3: { label: "Optimierung", className: "bg-blue-500 text-white hover:bg-blue-500" },
 };
 
 function IssueCard({ issue }: { issue: SeoIssue }) {
