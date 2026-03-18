@@ -22,4 +22,4 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 EXPOSE 3000
 
-CMD ["node", "--experimental-strip-types", "server.js"]
+CMD ["node", "Development/rankforge/server.js"]
