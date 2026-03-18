@@ -11,6 +11,10 @@ COPY public ./public
 COPY .next/standalone ./
 COPY .next/static ./.next/static
 COPY src ./src
+COPY prisma ./prisma
+
+# Generate Prisma client for alpine-musl inside container
+RUN npx prisma generate --schema ./prisma/schema.prisma
 
 # Create cache dir
 RUN mkdir -p .next/cache && chown node:node .next/cache || true

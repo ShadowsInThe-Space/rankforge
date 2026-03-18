@@ -1,0 +1,36 @@
+services:
+  rankforge:
+    image: rankforge:latest
+    container_name: rankforge
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://rankforge:RankForgeSecure2024@supabase-db:5432/rankforge
+      - JWT_SECRET=***REMOVED***
+      - NEXTAUTH_SECRET=rankforge-super-secret-nextauth-2024-change-in-production
+      - NEXTAUTH_URL=https://rankforge.shadowsinthe.space
+      - FIRECRAWL_API_URL=http://localhost:3002
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+    networks:
+      - agency-app_app-network
+      - supabase_default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.rankforge-http.rule=Host(`rankforge.shadowsinthe.space`)"
+      - "traefik.http.routers.rankforge-http.entrypoints=web"
+      - "traefik.http.routers.rankforge-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.rankforge-https.rule=Host(`rankforge.shadowsinthe.space`)"
+      - "traefik.http.routers.rankforge-https.entrypoints=websecure"
+      - "traefik.http.routers.rankforge-https.tls=true"
+      - "traefik.http.routers.rankforge-https.tls.certresolver=letsencrypt"
+      - "traefik.http.services.rankforge.loadbalancer.server.port=3000"
+
+networks:
+  agency-app_app-network:
+    external: true
+  supabase_default:
+    external: true
