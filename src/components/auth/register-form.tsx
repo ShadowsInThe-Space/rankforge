@@ -33,6 +33,20 @@ export function RegisterForm() {
         throw new Error(data.error || "Registration failed");
       }
 
+      // Auto-login after registration
+      const loginRes = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (loginRes.ok) {
+        const data = await loginRes.json();
+        localStorage.setItem("rf_token", data.token);
+        localStorage.setItem("rf_user", JSON.stringify(data.user));
+        document.cookie = `rf_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Strict`;
+      }
+
       router.push("/audit");
       router.refresh();
     } catch (err) {

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -132,7 +133,7 @@ export default function AuditHistoryPage() {
 
   async function fetchAudits() {
     try {
-      const res = await fetch("/api/audit");
+      const res = await apiFetch("/api/audit");
       if (res.ok) {
         setAudits(await res.json());
       }
@@ -146,7 +147,7 @@ export default function AuditHistoryPage() {
   // Fetch history for completed audits
   async function fetchHistory(domain: string) {
     try {
-      const res = await fetch(`/api/audit/history?domain=${encodeURIComponent(domain)}&limit=20`);
+      const res = await apiFetch(`/api/audit/history?domain=${encodeURIComponent(domain)}&limit=20`);
       if (res.ok) {
         const history = await res.json();
         setHistoryByDomain(prev => ({ ...prev, [domain]: history }));
@@ -160,7 +161,7 @@ export default function AuditHistoryPage() {
   async function fetchComparison(olderId: string, newerId: string) {
     setComparing(true);
     try {
-      const res = await fetch(`/api/audit/compare?older=${olderId}&newer=${newerId}`);
+      const res = await apiFetch(`/api/audit/compare?older=${olderId}&newer=${newerId}`);
       if (res.ok) {
         setComparison(await res.json());
       }
@@ -220,7 +221,7 @@ export default function AuditHistoryPage() {
 
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/audit/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/audit/${id}`, { method: "DELETE" });
       if (res.ok) {
         setAudits((prev) => prev.filter((a) => a.id !== id));
       }
@@ -233,7 +234,7 @@ export default function AuditHistoryPage() {
 
   async function exportCSV(id: string, domain: string) {
     try {
-      const res = await fetch(`/api/audit/${id}`, { method: "PUT" });
+      const res = await apiFetch(`/api/audit/${id}`, { method: "PUT" });
       if (res.ok) {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);

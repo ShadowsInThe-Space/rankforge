@@ -12,16 +12,22 @@ const jwtSecret: string = JWT_SECRET;
 export interface AuthUser {
   userId: string;
   email: string;
+  role?: string;
 }
 
 export function getAuthUser(request: NextRequest): AuthUser | null {
+  // Check Authorization header first (API clients)
   const authHeader = request.headers.get('authorization');
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
+  let token: string | null = null;
+
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else {
+    // Fall back to HTTP-only cookie (browser)
+    token = request.cookies.get('rf_token')?.value ?? null;
   }
 
-  const token = authHeader.substring(7);
+  if (!token) return null;
 
   try {
     const decoded = jwt.verify(token, jwtSecret) as AuthUser;

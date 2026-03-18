@@ -32,6 +32,15 @@ export function LoginForm() {
         throw new Error(data.error || "Login failed");
       }
 
+      const data = await res.json();
+      if (data.token) {
+        // Store token in localStorage for API calls
+        localStorage.setItem("rf_token", data.token);
+        localStorage.setItem("rf_user", JSON.stringify(data.user));
+        // Also set HTTP-only cookie for middleware
+        document.cookie = `rf_token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Strict`;
+      }
+
       router.push("/audit");
       router.refresh();
     } catch (err) {

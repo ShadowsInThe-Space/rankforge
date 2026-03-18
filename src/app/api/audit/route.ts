@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { firecrawl } from "@/lib/firecrawl";
 import { getAuthUser, requireAuth } from "@/lib/auth";
+import { hasCredits, consumeCredit, refundCredit } from "@/lib/credits";
 import type { HeadingStructure } from "@/types/audit";
 import { calculateScore, scoreToGrade } from "@/lib/analyzers/scoring";
 import { fetchCoreWebVitals } from "@/lib/analyzers/pagespeed";
@@ -56,6 +57,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Check credits
+  const canAudit = await hasCredits(user.userId);
+  if (!canAudit) {
+    return NextResponse.json(
+      {
+        error: "Keine Credits mehr übrig",
+        code: "UPGRADE_REQUIRED",
+        upgradeUrl: "/upgrade",
+      },
+      { status: 402 }
+    );
+  }
+
+  // Consume credit now (refund on error)
+  await consumeCredit(user.userId);
+
   const body = await request.json();
   const { url, keywords = [] } = body as {
     url: string;
@@ -63,11 +80,13 @@ export async function POST(request: NextRequest) {
   };
 
   if (!url) {
+    await refundCredit(user.userId);
     return NextResponse.json({ error: "URL ist erforderlich" }, { status: 400 });
   }
 
   // Validate URL to prevent SSRF
   if (!isValidUrl(url)) {
+    await refundCredit(user.userId);
     return NextResponse.json({ error: "Ungültige oder nicht erlaubte URL" }, { status: 400 });
   }
 
@@ -76,6 +95,7 @@ export async function POST(request: NextRequest) {
   try {
     domain = new URL(url.startsWith("http") ? url : `https://${url}`).hostname;
   } catch {
+    await refundCredit(user.userId);
     return NextResponse.json({ error: "Ungültige URL" }, { status: 400 });
   }
 
@@ -100,6 +120,8 @@ export async function POST(request: NextRequest) {
         where: { id: audit.id },
         data: { status: "error", error: String(err) },
       });
+      // Refund credit on failure
+      await refundCredit(user.userId);
     }
   );
 

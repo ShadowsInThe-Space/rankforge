@@ -47,6 +47,9 @@ export async function POST(request: NextRequest) {
         email,
         name: name || null,
         password: hashedPassword,
+        credits: 3,
+        creditsPerMonth: 3,
+        subscriptionTier: 'FREE',
       },
     });
 

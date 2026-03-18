@@ -9,6 +9,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Subscription Tiers ──────────────────────────────────────
+enum SubscriptionTier {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String   // Hashed
+  role      String   @default("USER") // USER | ADMIN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ── Billing ──────────────────────────────────────────────
+  stripeCustomerId       String?
+  subscriptionStatus     String?  // active | canceled | past_due | trialing
+  subscriptionTier       String   @default("FREE") // FREE | PRO | ENTERPRISE
+  stripeSubscriptionId   String?  // Stripe subscription ID
+  subscriptionEndsAt     DateTime? // Cancellaton date
+
+  // ── Credits ─────────────────────────────────────────────
+  credits                Int     @default(3)      // Remaining audits this month
+  creditsPerMonth        Int     @default(3)      // Max per month based on tier
+  lastCreditReset        DateTime @default(now()) // Monthly reset
+
+  // ── Relations ────────────────────────────────────────────
+  audits         Audit[]
+  auditHistories AuditHistory[]
+
+  @@index([email])
+  @@index([subscriptionStatus])
+}
+
 model Audit {
   id         String   @id @default(cuid())
   url        String
@@ -86,17 +122,7 @@ model Page {
   @@index([userId])
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  password  String   // Hashed
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  audits         Audit[]
-  auditHistories AuditHistory[]
-}
 
 // ─── Audit History: Snapshots of completed audits ────────────
 
