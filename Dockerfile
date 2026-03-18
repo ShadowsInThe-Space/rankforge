@@ -17,6 +17,9 @@ COPY . .
 # Generate Prisma client for alpine-musl
 RUN npx prisma generate
 
+# Compile TypeScript files to JavaScript
+RUN npx tsc --outDir ./src/generated/prisma ./src/generated/prisma/*.ts 2>/dev/null || true
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
@@ -35,6 +38,7 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/src ./src
 
 # Create cache dir if it exists
 RUN mkdir -p .next/cache && chown nextjs:nodejs .next/cache || true
@@ -46,4 +50,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+CMD ["node", "--experimental-strip-types", "server.js"]
