@@ -132,7 +132,7 @@ export default function AuditHistoryPage() {
 
   async function fetchAudits() {
     try {
-      const res = await fetch("/rankforge/api/audit");
+      const res = await fetch("/api/audit");
       if (res.ok) {
         setAudits(await res.json());
       }
@@ -146,7 +146,7 @@ export default function AuditHistoryPage() {
   // Fetch history for completed audits
   async function fetchHistory(domain: string) {
     try {
-      const res = await fetch(`/rankforge/api/audit/history?domain=${encodeURIComponent(domain)}&limit=20`);
+      const res = await fetch(`/api/audit/history?domain=${encodeURIComponent(domain)}&limit=20`);
       if (res.ok) {
         const history = await res.json();
         setHistoryByDomain(prev => ({ ...prev, [domain]: history }));
@@ -160,7 +160,7 @@ export default function AuditHistoryPage() {
   async function fetchComparison(olderId: string, newerId: string) {
     setComparing(true);
     try {
-      const res = await fetch(`/rankforge/api/audit/compare?older=${olderId}&newer=${newerId}`);
+      const res = await fetch(`/api/audit/compare?older=${olderId}&newer=${newerId}`);
       if (res.ok) {
         setComparison(await res.json());
       }
@@ -220,7 +220,7 @@ export default function AuditHistoryPage() {
 
     setDeletingId(id);
     try {
-      const res = await fetch(`/rankforge/api/audit/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/audit/${id}`, { method: "DELETE" });
       if (res.ok) {
         setAudits((prev) => prev.filter((a) => a.id !== id));
       }
@@ -233,7 +233,7 @@ export default function AuditHistoryPage() {
 
   async function exportCSV(id: string, domain: string) {
     try {
-      const res = await fetch(`/rankforge/api/audit/${id}`, { method: "PUT" });
+      const res = await fetch(`/api/audit/${id}`, { method: "PUT" });
       if (res.ok) {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
@@ -269,7 +269,7 @@ export default function AuditHistoryPage() {
           </p>
         </div>
         <Button asChild>
-          <Link href="/rankforge/audit/new">
+          <Link href="/audit/new">
             <Plus className="w-4 h-4 mr-2" />
             Neuer Audit
           </Link>
@@ -545,7 +545,7 @@ export default function AuditHistoryPage() {
               Starte deinen ersten SEO Audit und erkenne Verbesserungspotenzial.
             </p>
             <Button asChild>
-              <Link href="/rankforge/audit/new">
+              <Link href="/audit/new">
                 <Plus className="w-4 h-4 mr-2" />
                 Ersten Audit starten
               </Link>

@@ -35,7 +35,7 @@ export default function RootLayout({
             </Link>
             <nav className="flex gap-4 text-sm text-muted-foreground">
               <Link href="/" className="hover:text-foreground transition-colors">Dashboard</Link>
-              <Link href="/rankforge/audit/new" className="hover:text-foreground transition-colors">Neuer Audit</Link>
+              <Link href="/audit/new" className="hover:text-foreground transition-colors">Neuer Audit</Link>
             </nav>
           </div>
         </header>

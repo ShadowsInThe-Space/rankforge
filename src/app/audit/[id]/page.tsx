@@ -105,7 +105,7 @@ export default function AuditResultPage() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   async function fetchAudit() {
-    const res = await fetch(`/rankforge/api/audit/${id}`);
+    const res = await fetch(`/api/audit/${id}`);
     if (res.ok) {
       setAudit(await res.json());
     }
@@ -328,7 +328,7 @@ export default function AuditResultPage() {
   async function exportCSV() {
     if (!audit) return;
     try {
-      const res = await fetch(`/rankforge/api/audit/${audit.id}`, { method: "PUT" });
+      const res = await fetch(`/api/audit/${audit.id}`, { method: "PUT" });
       if (res.ok) {
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);

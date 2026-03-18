@@ -23,7 +23,7 @@ export default function NewAuditPage() {
     setError("");
 
     try {
-      const res = await fetch("/rankforge/api/audit", {
+      const res = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
