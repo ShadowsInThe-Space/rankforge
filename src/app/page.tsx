@@ -31,6 +31,19 @@ export default function LandingPage() {
               RankForge gives you powerful SEO analysis tools without the monthly API bills. 
               Run unlimited audits on your own infrastructure.
             </p>
+
+            {/* USP Bar */}
+            <div className="flex flex-wrap justify-center gap-6 text-sm mb-8">
+              <span className="flex items-center gap-1.5">
+                <span className="text-green-500">✓</span> No API rate limits
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-green-500">✓</span> Self-hosted = your data stays private
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-green-500">✓</span> Gemini 2.0 Flash powered
+              </span>
+            </div>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" asChild>
@@ -119,6 +132,50 @@ export default function LandingPage() {
                 <p className="text-muted-foreground text-sm">
                   Index status, sitemaps, robots.txt, canonical URLs, and coverage issues detection.
                 </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Case Study Section */}
+      <section className="py-20 bg-muted/30">
+        <div className="container mx-auto px-6">
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 text-green-600 text-xs font-medium mb-4">
+                ✓ Proven Result
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                IBZN.de: SEO Score 24 → 75 in one audit
+              </h2>
+            </div>
+
+            <Card className="border-green-500/20">
+              <CardContent className="pt-6">
+                <div className="grid md:grid-cols-3 gap-6 mb-6">
+                  <div className="text-center">
+                    <div className="text-4xl font-bold text-green-500">+212%</div>
+                    <div className="text-sm text-muted-foreground">SEO Score improvement</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-4xl font-bold">2 min</div>
+                    <div className="text-sm text-muted-foreground">Full audit completion</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-4xl font-bold">€0</div>
+                    <div className="text-sm text-muted-foreground">Extra API costs</div>
+                  </div>
+                </div>
+                <p className="text-muted-foreground text-center mb-6">
+                  RankForge found critical issues that Ahrefs and Semrush missed — and fixed them in one run.
+                  Self-hosted means no per-page API fees, no rate limits, no surprises.
+                </p>
+                <div className="flex justify-center">
+                  <Button variant="outline" asChild>
+                    <a href="/register">Try It Yourself — Free</a>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
