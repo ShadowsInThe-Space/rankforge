@@ -493,25 +493,32 @@ async function runAuditPipeline(
   // Phase 4.5: Enterprise Analysis - Date Consistency (Google Leak 2024)
   const { analyzeDateConsistency } = await import("@/lib/analyzers/date-consistency");
   
-  const dateAnalysis = await Promise.all(
-    crawlStatus.data.map(async (page) => {
-      const pageUrl = page.metadata?.sourceURL || "";
-      if (!pageUrl) return null;
-      
-      try {
-        const report = await analyzeDateConsistency(page);
-        return {
-          url: pageUrl,
-          report,
-        };
-      } catch (e) {
-        console.error(`Date analysis failed for ${pageUrl}:`, e);
-        return null;
-      }
-    })
-  );
-
-  const dateAnalysisFiltered = dateAnalysis.filter((d) => d !== null);
+  let dateAnalysisFiltered: Array<{ url: string; report: unknown }> = [];
+  try {
+    console.log(`[Analysis] Starting date consistency analysis on ${crawlStatus.data.length} pages...`);
+    const dateAnalysis = await Promise.all(
+      crawlStatus.data.map(async (page) => {
+        const pageUrl = page.metadata?.sourceURL || "";
+        if (!pageUrl) return null;
+        
+        try {
+          const report = await analyzeDateConsistency(page);
+          return {
+            url: pageUrl,
+            report,
+          };
+        } catch (e) {
+          console.error(`Date analysis failed for ${pageUrl}:`, e);
+          return null;
+        }
+      })
+    );
+    dateAnalysisFiltered = dateAnalysis.filter((d) => d !== null) as typeof dateAnalysisFiltered;
+    console.log(`[Analysis] Date consistency analysis complete. Analyzed ${dateAnalysisFiltered.length} pages.`);
+  } catch (e) {
+    console.error("[Analysis] Date consistency analysis failed:", e);
+    dateAnalysisFiltered = [];
+  }
 
   // Phase 4.6: Enterprise Analysis - Index Tier Prediction (Google Leak 2024)
   const { predictIndexTier } = await import("@/lib/analyzers/index-tier");
@@ -528,90 +535,135 @@ async function runAuditPipeline(
     }
   }
   
-  const tierAnalysis = await Promise.all(
-    crawlStatus.data.map(async (page) => {
-      const pageUrl = page.metadata?.sourceURL || "";
-      if (!pageUrl) return null;
-      
-      try {
-        const headings = extractHeadings(page.html || "");
-        const wordCount = countWords(page.markdown || "");
-        const links = categorizeLinks(page.links || [], pageUrl, domain);
+  let tierAnalysisFiltered: Array<{ url: string; prediction: unknown }> = [];
+  try {
+    console.log(`[Analysis] Starting index tier prediction on ${crawlStatus.data.length} pages...`);
+    const tierAnalysis = await Promise.all(
+      crawlStatus.data.map(async (page) => {
+        const pageUrl = page.metadata?.sourceURL || "";
+        if (!pageUrl) return null;
         
-        // Check if this page has perfect date consistency (for bonus)
-        const dateReport = dateAnalysisFiltered.find((d) => d?.url === pageUrl);
-        const dateConsistencyBonus = dateReport?.report.score === 100 ? 5 : 0;
-        
-        const prediction = await predictIndexTier(
-          {
+        try {
+          const headings = extractHeadings(page.html || "");
+          const wordCount = countWords(page.markdown || "");
+          const links = categorizeLinks(page.links || [], pageUrl, domain);
+          
+          // Check if this page has perfect date consistency (for bonus)
+          const dateReport = dateAnalysisFiltered.find((d) => d?.url === pageUrl);
+          const dateConsistencyBonus = dateReport?.report && typeof dateReport.report === 'object' && 'score' in dateReport.report && dateReport.report.score === 100 ? 5 : 0;
+          
+          const prediction = await predictIndexTier(
+            {
+              url: pageUrl,
+              html: page.html,
+              markdown: page.markdown,
+              metadata: page.metadata,
+              wordCount,
+              headings,
+              links,
+            },
+            {
+              internalBacklinks: internalBacklinks.get(pageUrl) || 0,
+              dateConsistencyBonus,
+            }
+          );
+          
+          return {
             url: pageUrl,
-            html: page.html,
-            markdown: page.markdown,
-            metadata: page.metadata,
-            wordCount,
-            headings,
-            links,
-          },
-          {
-            internalBacklinks: internalBacklinks.get(pageUrl) || 0,
-            dateConsistencyBonus,
-          }
-        );
-        
-        return {
-          url: pageUrl,
-          prediction,
-        };
-      } catch (e) {
-        console.error(`Index tier prediction failed for ${pageUrl}:`, e);
-        return null;
-      }
-    })
-  );
-  
-  const tierAnalysisFiltered = tierAnalysis.filter((t) => t !== null);
+            prediction,
+          };
+        } catch (e) {
+          console.error(`Index tier prediction failed for ${pageUrl}:`, e);
+          return null;
+        }
+      })
+    );
+    tierAnalysisFiltered = tierAnalysis.filter((t) => t !== null) as typeof tierAnalysisFiltered;
+    console.log(`[Analysis] Index tier prediction complete. Analyzed ${tierAnalysisFiltered.length} pages.`);
+  } catch (e) {
+    console.error("[Analysis] Index tier prediction failed:", e);
+    tierAnalysisFiltered = [];
+  }
 
   // Phase 4.7: Enterprise Analysis - NavBoost Simulator (Google Leak 2024)
   const { analyzeNavBoost } = await import("@/lib/analyzers/navboost");
   
-  const navboostReport = analyzeNavBoost(crawlStatus.data.map(page => ({
-    url: page.metadata?.sourceURL || "",
-    markdown: page.markdown || "",
-    html: page.html || "",
-    metadata: page.metadata,
-    links: page.links || []
-  })));
+  let navboostReport;
+  try {
+    console.log(`[Analysis] Starting NavBoost analysis on ${crawlStatus.data.length} pages...`);
+    navboostReport = analyzeNavBoost(crawlStatus.data.map(page => ({
+      url: page.metadata?.sourceURL || "",
+      markdown: page.markdown || "",
+      html: page.html || "",
+      metadata: page.metadata,
+      links: page.links || []
+    })));
+    console.log(`[Analysis] NavBoost analysis complete. Score: ${navboostReport.overallScore}`);
+  } catch (e) {
+    console.error("[Analysis] NavBoost analysis failed:", e);
+    navboostReport = {
+      overallScore: 50,
+      totalPages: crawlStatus.data.length,
+      distribution: { excellent: 0, good: 0, average: 0, poor: 0, critical: 0 },
+      topIssues: [],
+      topRecommendations: [],
+      pageAnalyses: new Map()
+    };
+  }
 
   // Phase 4.8: Enterprise Analysis - Link Tier Analyzer (Google Leak 2024)
   const { analyzeLinkTiers } = await import("@/lib/analyzers/link-tier");
   
-  const linkTierReport = analyzeLinkTiers(
-    crawlStatus.data.map(page => ({
-      url: page.metadata?.sourceURL || "",
-      links: {
-        internal: (page.links || []).filter(link => {
-          try {
-            const linkUrl = new URL(link);
-            return linkUrl.hostname === domain || linkUrl.hostname.endsWith(`.${domain}`);
-          } catch {
-            return false;
-          }
-        }),
-        external: (page.links || []).filter(link => {
-          try {
-            const linkUrl = new URL(link);
-            return !(linkUrl.hostname === domain || linkUrl.hostname.endsWith(`.${domain}`));
-          } catch {
-            return false;
-          }
-        })
-      }
-    })),
-    tierAnalysisFiltered
-  );
+  let linkTierReport;
+  try {
+    console.log(`[Analysis] Starting link tier analysis...`);
+    linkTierReport = analyzeLinkTiers(
+      crawlStatus.data.map(page => ({
+        url: page.metadata?.sourceURL || "",
+        links: {
+          internal: (page.links || []).filter(link => {
+            try {
+              const linkUrl = new URL(link);
+              return linkUrl.hostname === domain || linkUrl.hostname.endsWith(`.${domain}`);
+            } catch {
+              return false;
+            }
+          }),
+          external: (page.links || []).filter(link => {
+            try {
+              const linkUrl = new URL(link);
+              return !(linkUrl.hostname === domain || linkUrl.hostname.endsWith(`.${domain}`));
+            } catch {
+              return false;
+            }
+          })
+        }
+      })),
+      tierAnalysisFiltered
+    );
+    console.log(`[Analysis] Link tier analysis complete. Score: ${linkTierReport.overallScore}`);
+  } catch (e) {
+    console.error("[Analysis] Link tier analysis failed:", e);
+    linkTierReport = {
+      overallScore: 50,
+      totalInternalLinks: 0,
+      tierDistribution: { baseTier: 0, zeppelinTier: 0, landfillTier: 0 },
+      topLinkedPages: [],
+      orphanPages: [],
+      linkOpportunities: [],
+      pageAnalyses: {}
+    };
+  }
 
   // Phase 5: Analyse ausführen
   const pages = await prisma.page.findMany({ where: { auditId } });
+  
+  // Safety limit - prevent memory issues with large page sets
+  const MAX_PAGES_FOR_ANALYSIS = 200;
+  const pagesToAnalyze = pages.slice(0, MAX_PAGES_FOR_ANALYSIS);
+  if (pages.length > MAX_PAGES_FOR_ANALYSIS) {
+    console.log(`[Analysis] Limiting analysis to ${MAX_PAGES_FOR_ANALYSIS} of ${pages.length} pages`);
+  }
 
   // Dynamic imports für Analyzer
   const { analyzeTechnicalSeo } = await import("@/lib/analyzers/technical");
@@ -635,96 +687,231 @@ async function runAuditPipeline(
   // Pass Core Web Vitals array to technical analyzer
   const cwvArray = coreWebVitalsResult ? [coreWebVitalsResult] : undefined;
   
-  const technicalResult = analyzeTechnicalSeo(
-    pages.map((p) => ({
-      url: p.url,
-      statusCode: p.statusCode,
-      title: p.title,
-      description: p.description,
-      h1: p.h1,
-      wordCount: p.wordCount,
-      markdown: p.markdown,
-      html: p.html,
-      links: p.links,
-      headings: p.headings,
-      // Pass Core Web Vitals to technical analyzer for homepage only
-      coreWebVitals: (p.url === url && coreWebVitalsResult) ? coreWebVitalsResult : undefined,
-    })),
-    cwvArray
-  );
+  // Technical Analysis Phase - wrapped in try-catch
+  let technicalResult;
+  try {
+    console.log(`[Analysis] Starting technical analysis on ${pagesToAnalyze.length} pages...`);
+    technicalResult = analyzeTechnicalSeo(
+      pagesToAnalyze.map((p) => ({
+        url: p.url,
+        statusCode: p.statusCode,
+        title: p.title,
+        description: p.description,
+        h1: p.h1,
+        wordCount: p.wordCount,
+        markdown: p.markdown,
+        html: p.html,
+        links: p.links,
+        headings: p.headings,
+        // Pass Core Web Vitals to technical analyzer for homepage only
+        coreWebVitals: (p.url === url && coreWebVitalsResult) ? coreWebVitalsResult : undefined,
+      })),
+      cwvArray
+    );
+    console.log(`[Analysis] Technical analysis complete. Found ${technicalResult.issues.length} issues.`);
+  } catch (e) {
+    console.error("[Analysis] Technical analysis failed:", e);
+    technicalResult = {
+      issues: [],
+      stats: { totalPages: pagesToAnalyze.length, pagesWithIssues: 0, p0Count: 0, p1Count: 0, p2Count: 0, p3Count: 0 }
+    };
+  }
 
-  // Advanced SEO Analysis - Comprehensive checks matching SEOptimer
+  // Advanced SEO Analysis - wrapped in try-catch
   const primaryKeyword = keywords && keywords.length > 0 ? keywords[0] : "";
-  const advancedSeoResult = analyzeAdvancedSeo(
-    pages.map((p) => ({
-      url: p.url,
-      html: p.html,
-      title: p.title,
-      description: p.description,
-      h1: p.h1,
-      wordCount: p.wordCount,
-      headings: p.headings as HeadingStructure | null,
-    })),
-    primaryKeyword
-  );
+  let advancedSeoResult;
+  try {
+    console.log(`[Analysis] Starting advanced SEO analysis...`);
+    advancedSeoResult = analyzeAdvancedSeo(
+      pagesToAnalyze.map((p) => ({
+        url: p.url,
+        html: p.html,
+        title: p.title,
+        description: p.description,
+        h1: p.h1,
+        wordCount: p.wordCount,
+        headings: p.headings as HeadingStructure | null,
+      })),
+      primaryKeyword
+    );
+    console.log(`[Analysis] Advanced SEO analysis complete. Found ${advancedSeoResult.issues.length} issues.`);
+  } catch (e) {
+    console.error("[Analysis] Advanced SEO analysis failed:", e);
+    advancedSeoResult = {
+      issues: [],
+      stats: { totalPages: pagesToAnalyze.length, pagesWithIssues: 0, p0Count: 0, p1Count: 0, p2Count: 0 },
+      pageAnalysis: []
+    };
+  }
 
-  // GEO / AI Search Optimization Analysis (Generative Engine Optimization)
-  const { analyzeGeo } = await import("@/lib/analyzers/geo-signals");
-  const geoResult = analyzeGeo(
-    pages.map((p) => ({
-      url: p.url,
-      html: p.html,
-      wordCount: p.wordCount,
-      headings: p.headings as HeadingStructure | null,
-      links: p.links as { internal: string[]; external: string[] } | null,
-    }))
-  );
+  // GEO / AI Search Optimization Analysis - wrapped in try-catch
+  let geoResult;
+  try {
+    console.log(`[Analysis] Starting GEO/AI search analysis...`);
+    const { analyzeGeo } = await import("@/lib/analyzers/geo-signals");
+    geoResult = analyzeGeo(
+      pagesToAnalyze.map((p) => ({
+        url: p.url,
+        html: p.html,
+        wordCount: p.wordCount,
+        headings: p.headings as HeadingStructure | null,
+        links: p.links as { internal: string[]; external: string[] } | null,
+      }))
+    );
+    console.log(`[Analysis] GEO analysis complete. Score: ${geoResult.geoScore}`);
+  } catch (e) {
+    console.error("[Analysis] GEO analysis failed:", e);
+    geoResult = {
+      issues: [],
+      geoScore: 50,
+      faq: { hasFaqSchema: false, hasFaqContent: false, faqCount: 0, questionsAnswered: 0, questionPatterns: [] },
+      eeat: { hasAuthorSchema: false, hasOrganizationSchema: false, hasContactPage: false, hasAboutPage: false, hasAuthorBio: false, hasTrustSignals: false, hasSocialLinks: false, sslPresent: true },
+      freshness: { hasPublishDate: false, hasModDate: false, hasDateSchema: false, hasSitemapDate: false, daysSincePublish: null, daysSinceUpdate: null, isStale: false },
+      conversational: { hasQuestionHeadings: false, hasLongTailKeywords: false, conversationalDensity: 0, hasHowToContent: false, hasStepByStep: false, naturalLanguageScore: 0 },
+      topicAuthority: { internalLinkCount: 0, uniqueInternalPages: 0, linkDepth: 0, orphanPageCount: 0, contentDepth: 0, topicClusterSize: 0 }
+    };
+  }
 
-  const linkResult = analyzeLinkGraph(
-    pages.map((p) => ({
-      url: p.url,
-      links: p.links as { internal: string[]; external: string[] } | null,
-    })),
-    mapUrls,
-    url
-  );
+  // Link Graph Analysis - wrapped in try-catch
+  let linkResult;
+  try {
+    console.log(`[Analysis] Starting link graph analysis...`);
+    linkResult = analyzeLinkGraph(
+      pagesToAnalyze.map((p) => ({
+        url: p.url,
+        links: p.links as { internal: string[]; external: string[] } | null,
+      })),
+      mapUrls,
+      url
+    );
+    console.log(`[Analysis] Link graph analysis complete. ${linkResult.nodes.length} nodes, ${linkResult.edges.length} edges.`);
+  } catch (e) {
+    console.error("[Analysis] Link graph analysis failed:", e);
+    linkResult = {
+      nodes: [],
+      edges: [],
+      orphanPages: [],
+      deadEndPages: [],
+      avgInternalLinks: 0,
+      maxCrawlDepth: 0,
+      sitemapCoverage: 0
+    };
+  }
 
-  const contentResult = analyzeContent(
-    pages.map((p) => ({
-      url: p.url,
-      wordCount: p.wordCount,
-      markdown: p.markdown,
-      headings: p.headings as HeadingStructure | null,
-      links: p.links as { internal: string[]; external: string[] } | null,
-    }))
-  );
+  // Content Analysis - wrapped in try-catch
+  let contentResult;
+  try {
+    console.log(`[Analysis] Starting content analysis...`);
+    contentResult = analyzeContent(
+      pagesToAnalyze.map((p) => ({
+        url: p.url,
+        wordCount: p.wordCount,
+        markdown: p.markdown,
+        headings: p.headings as HeadingStructure | null,
+        links: p.links as { internal: string[]; external: string[] } | null,
+      }))
+    );
+    console.log(`[Analysis] Content analysis complete. Avg word count: ${contentResult.avgWordCount}`);
+  } catch (e) {
+    console.error("[Analysis] Content analysis failed:", e);
+    contentResult = {
+      pages: [],
+      avgWordCount: 0,
+      thinContentPages: [],
+      benchmarks: [],
+      contentTypeDistribution: {
+        homepage: 0,
+        blog: 0,
+        product: 0,
+        landing: 0,
+        contact: 0,
+        legal: 0,
+        about: 0,
+        category: 0,
+        other: 0
+      }
+    } as Omit<ContentAnalysis, 'benchmarks'>;
+  }
 
-  // Phase 5.5: External Backlink Analysis (NEW v2.1)
-  // Analyze external links from HTML - anchor text, quality, etc.
-  const externalBacklinksResult = analyzeExternalBacklinks(
-    pages.map((p) => ({
-      url: p.url,
-      html: p.html || "",
-      links: p.links as { internal: string[]; external: string[] } | null,
-    }))
-  );
+  // External Backlink Analysis - wrapped in try-catch
+  let externalBacklinksResult;
+  try {
+    console.log(`[Analysis] Starting external backlink analysis...`);
+    externalBacklinksResult = analyzeExternalBacklinks(
+      pagesToAnalyze.map((p) => ({
+        url: p.url,
+        html: p.html || "",
+        links: p.links as { internal: string[]; external: string[] } | null,
+      }))
+    );
+    console.log(`[Analysis] External backlink analysis complete. Found ${externalBacklinksResult.totalExternalLinks} links.`);
+  } catch (e) {
+    console.error("[Analysis] External backlink analysis failed:", e);
+    externalBacklinksResult = {
+      totalExternalLinks: 0,
+      uniqueDomains: 0,
+      pagesWithExternalLinks: 0,
+      avgExternalLinksPerPage: 0,
+      linkQuality: {
+        doFollow: 0,
+        noFollow: 0,
+        sponsored: 0,
+        ugc: 0,
+        megaSites: 0,
+        socialMedia: 0,
+        news: 0,
+        eduGov: 0
+      },
+      anchorText: {
+        exactMatch: 0,
+        partialMatch: 0,
+        branded: 0,
+        naked: 0,
+        generic: 0,
+        image: 0,
+        totalAnchors: 0,
+        distribution: {}
+      },
+      pages: []
+    };
+  }
 
   // Include external backlinks in the result
   linkResult.externalBacklinks = externalBacklinksResult;
 
-  const score = calculateScore(
-    technicalResult, 
-    linkResult, 
-    contentResult, 
-    advancedSeoResult, 
-    externalBacklinksResult,
-    coreWebVitalsResult ? [coreWebVitalsResult] : undefined,
-    geoResult
-  );
+  // Score Calculation - wrapped in try-catch
+  let score;
+  try {
+    console.log(`[Analysis] Calculating final score...`);
+    score = calculateScore(
+      technicalResult, 
+      linkResult, 
+      contentResult, 
+      advancedSeoResult, 
+      externalBacklinksResult,
+      coreWebVitalsResult ? [coreWebVitalsResult] : undefined,
+      geoResult
+    );
+    console.log(`[Analysis] Final score calculated: ${score.overall}/100`);
+  } catch (e) {
+    console.error("[Analysis] Score calculation failed:", e);
+    score = {
+      overall: 50,
+      technical: 50,
+      onPage: 50,
+      contentQuality: 50,
+      userSignals: 50,
+      backlinks: 50,
+      geo: 50,
+      content: 50,
+      links: 50
+    };
+  }
 
-  // Phase 6: AI Recommendations
+  // Phase 6: AI Recommendations - wrapped in try-catch
   let summary;
   try {
+    console.log(`[Analysis] Generating AI recommendations...`);
     summary = await generateRecommendations({
       domain,
       score,
@@ -732,7 +919,9 @@ async function runAuditPipeline(
       links: linkResult,
       content: contentResult,
     });
-  } catch {
+    console.log(`[Analysis] AI recommendations generated.`);
+  } catch (e) {
+    console.error("[Analysis] AI recommendations generation failed:", e);
     summary = {
       executiveSummary: `SEO-Audit für ${domain} abgeschlossen. Score: ${score.overall}/100.`,
       scoreBreakdown: score,

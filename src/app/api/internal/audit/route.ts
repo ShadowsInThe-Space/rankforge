@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db";
 import { firecrawl } from "@/lib/firecrawl";
 import type { HeadingStructure } from "@/types/audit";
 import { calculateScore, scoreToGrade } from "@/lib/analyzers/scoring";
+import { analyzeTechnicalSeo } from "@/lib/analyzers/technical";
+import { analyzeLinkGraph } from "@/lib/analyzers/links";
+import { analyzeContent } from "@/lib/analyzers/content";
 
 // ─── Internal B2B API (Mission Control → RankForge) ─────────
 // Uses INTERNAL_API_KEY header instead of NextAuth JWT
@@ -172,7 +175,6 @@ async function runAuditPipeline(auditId: string, url: string, domain: string, ke
     if (!crawlStatus || crawlStatus.status === "failed") throw new Error("Crawl failed");
 
     // Get actual page data after crawl completes
-    let crawlPages: import("@/types/audit").FirecrawlPageData[] = [];
     try {
       const crawlDataStatus = await firecrawl.crawlStatus(crawlResult.id);
       crawlPages = crawlDataStatus.data || [];
@@ -237,6 +239,74 @@ async function runAuditPipeline(auditId: string, url: string, domain: string, ke
         headings: JSON.stringify(headings),
         contentType: null,
       },
+    });
+  }
+
+  // ── Phase 3: Analyze and score all saved pages ─────────────────────
+  const savedPages = await prisma.page.findMany({ where: { auditId } });
+  if (savedPages.length > 0) {
+    // Simple, fast scoring per page
+    for (const page of savedPages) {
+      const pageIssues: import("@/types/audit").Issue[] = [];
+      let pageScore = 100;
+
+      // Title checks
+      if (!page.title) {
+        pageIssues.push({ code: "TITLE_MISSING", message: "Title tag fehlt", severity: "critical", element: "head > title" });
+        pageScore -= 15;
+      } else if (page.title.length < 30) {
+        pageIssues.push({ code: "TITLE_TOO_SHORT", message: `Title zu kurz (${page.title.length} Zeichen)`, severity: "warning", element: "head > title" });
+        pageScore -= 5;
+      } else if (page.title.length > 60) {
+        pageIssues.push({ code: "TITLE_TOO_LONG", message: `Title zu lang (${page.title.length} Zeichen)`, severity: "warning", element: "head > title" });
+        pageScore -= 3;
+      }
+
+      // Description checks
+      if (!page.description) {
+        pageIssues.push({ code: "DESC_MISSING", message: "Meta description fehlt", severity: "major", element: 'meta[name="description"]' });
+        pageScore -= 10;
+      } else if (page.description.length < 120) {
+        pageIssues.push({ code: "DESC_TOO_SHORT", message: `Meta description zu kurz (${page.description.length} Zeichen)`, severity: "warning", element: 'meta[name="description"]' });
+        pageScore -= 5;
+      }
+
+      // Content quality
+      if ((page.wordCount || 0) < 300) {
+        pageIssues.push({ code: "THIN_CONTENT", message: `Thin content (${page.wordCount || 0} words)`, severity: "warning", element: "body" });
+        pageScore -= 20;
+      } else if ((page.wordCount || 0) > 1500) {
+        pageScore += 5; // bonus
+      }
+
+      // Status code
+      if (page.statusCode && page.statusCode >= 400) {
+        pageIssues.push({ code: "HTTP_ERROR", message: `HTTP ${page.statusCode}`, severity: "critical", element: "server" });
+        pageScore -= 25;
+      }
+
+      pageScore = Math.max(0, Math.min(100, pageScore));
+      await prisma.page.update({
+        where: { id: page.id },
+        data: {
+          score: pageScore,
+          issues: JSON.stringify(pageIssues),
+        },
+      });
+    }
+
+    // Aggregate score
+    const pageScores = savedPages.map(p => {
+      const p2 = savedPages.find(x => x.id === p.id)!;
+      return p2.score ?? 0;
+    }).filter(s => s > 0);
+    const avgScore = pageScores.length > 0
+      ? Math.round(pageScores.reduce((a, b) => a + b, 0) / pageScores.length)
+      : 0;
+
+    await prisma.audit.update({
+      where: { id: auditId },
+      data: { score: avgScore, grade: scoreToGrade(avgScore) },
     });
   }
 
