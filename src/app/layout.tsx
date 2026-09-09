@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -151,17 +152,23 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background`}
       >
+        {/* Coming Soon Banner */}
+        <div className="bg-primary text-primary-foreground text-center py-2 px-4 text-sm font-medium">
+          🚀 RankForge Launcht bald! Registrierung bald möglich — stay tuned!
+        </div>
         <header className="border-b">
           <div className="container mx-auto flex items-center justify-between px-6 py-4">
             <Link href="/" className="text-xl font-bold tracking-tight">
               Rank<span className="text-primary">Forge</span>
             </Link>
-            <nav className="flex gap-4 text-sm text-muted-foreground">
-              <Link href="/" className="hover:text-foreground transition-colors">Dashboard</Link>
-              <Link href="/audit/new" className="hover:text-foreground transition-colors">Neuer Audit</Link>
-              <Link href="/upgrade" className="hover:text-foreground transition-colors">Upgrade</Link>
-              <Link href="/profile" className="hover:text-foreground transition-colors">Profile</Link>
-            </nav>
+            <div className="flex gap-4 text-sm">
+              <Button variant="outline" size="sm" disabled>
+                Anmelden
+              </Button>
+              <Button size="sm" disabled>
+                Coming Soon
+              </Button>
+            </div>
           </div>
         </header>
         <main className="container mx-auto px-6 py-8">
