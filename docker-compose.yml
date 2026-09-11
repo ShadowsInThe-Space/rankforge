@@ -7,7 +7,7 @@ services:
       - .env
     environment:
       - DATABASE_URL=postgresql://rankforge:RankForgeSecure2024@supabase-db:5432/rankforge
-      - JWT_SECRET=***REMOVED***
+      - JWT_SECRET=${JWT_SECRET:?Bitte JWT_SECRET in .env setzen}
       - NEXTAUTH_SECRET=rankforge-super-secret-nextauth-2024-change-in-production
       - NEXTAUTH_URL=https://rankforge.shadowsinthe.space
       - FIRECRAWL_API_URL=http://host.docker.internal:3002
