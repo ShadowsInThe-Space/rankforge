@@ -4,6 +4,8 @@
 
 **Self-hosted SEO- & GEO-Analyse-Plattform** — Next.js 16 (App Router), Prisma/PostgreSQL, modulare Analyzer-Engine und KI-gestützte Empfehlungen. Analysiert Websites nicht nur auf klassisches SEO, sondern auch auf **GEO-Signale** (Generative Engine Optimization: wie gut Inhalte für KI-Antwortsysteme lesbar sind).
 
+![RankForge Login](docs/screenshot-login.png)
+
 ## Features
 
 ### 🔍 Analyzer-Engine (`src/lib/analyzers/`)
