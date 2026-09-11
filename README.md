@@ -1,5 +1,7 @@
 # RankForge
 
+> **English TL;DR:** Self-hosted SEO & GEO (Generative Engine Optimization) analysis platform — modular analyzer engine, AI-generated recommendations, PDF reporting. Next.js 16, Prisma/PostgreSQL, d3.
+
 **Self-hosted SEO- & GEO-Analyse-Plattform** — Next.js 16 (App Router), Prisma/PostgreSQL, modulare Analyzer-Engine und KI-gestützte Empfehlungen. Analysiert Websites nicht nur auf klassisches SEO, sondern auch auf **GEO-Signale** (Generative Engine Optimization: wie gut Inhalte für KI-Antwortsysteme lesbar sind).
 
 ## Features
